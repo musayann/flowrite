@@ -4,6 +4,11 @@ import { useMemo } from "react";
 import type { Issue } from "@/lib/schema";
 import { resolveHighlights } from "@/lib/highlight";
 import { CATEGORY_STYLES } from "@/lib/categories";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type Props = {
   original: string;
@@ -24,35 +29,40 @@ export default function HighlightedText({
   );
 
   return (
-    <p className="whitespace-pre-wrap break-words text-lg leading-loose">
+    <p className="text-lg leading-loose break-words whitespace-pre-wrap">
       {segments.map((seg, i) => {
         if (seg.issueIndex === null) {
           return <span key={i}>{seg.text}</span>;
         }
-        const issue = issues[seg.issueIndex];
+        const idx = seg.issueIndex;
+        const issue = issues[idx];
         const style = CATEGORY_STYLES[issue.category];
-        const isActive = activeIndex === seg.issueIndex;
+        const isActive = activeIndex === idx;
         return (
-          <mark
-            key={i}
-            tabIndex={0}
-            role="button"
-            title={`${style.label}: ${issue.explanation}`}
-            onMouseEnter={() => onActivate(seg.issueIndex)}
-            onMouseLeave={() => onActivate(null)}
-            onFocus={() => onActivate(seg.issueIndex)}
-            onBlur={() => onActivate(null)}
-            onClick={() => {
-              document
-                .getElementById(`issue-${seg.issueIndex}`)
-                ?.scrollIntoView({ behavior: "smooth", block: "center" });
-            }}
-            className={`cursor-pointer rounded px-0.5 ${style.mark} ${
-              isActive ? "ring-2 ring-slate-900/40" : ""
-            }`}
-          >
-            {seg.text}
-          </mark>
+          <Tooltip key={i}>
+            <TooltipTrigger asChild>
+              <mark
+                onMouseEnter={() => onActivate(idx)}
+                onMouseLeave={() => onActivate(null)}
+                onFocus={() => onActivate(idx)}
+                onBlur={() => onActivate(null)}
+                onClick={() => {
+                  document
+                    .getElementById(`issue-${idx}`)
+                    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                }}
+                className={`cursor-pointer rounded px-0.5 ${style.mark} ${
+                  isActive ? "ring-2 ring-ring" : ""
+                }`}
+              >
+                {seg.text}
+              </mark>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <span className="font-medium">{style.label}:</span>{" "}
+              {issue.explanation}
+            </TooltipContent>
+          </Tooltip>
         );
       })}
     </p>

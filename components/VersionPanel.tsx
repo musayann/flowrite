@@ -1,12 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { Check, Copy } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="sm"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
@@ -16,10 +26,14 @@ function CopyButton({ text }: { text: string }) {
           /* clipboard unavailable — ignore */
         }
       }}
-      className="text-xs font-medium text-slate-500 hover:text-slate-800"
     >
+      {copied ? (
+        <Check className="h-4 w-4" />
+      ) : (
+        <Copy className="h-4 w-4" />
+      )}
       {copied ? "Copied" : "Copy"}
-    </button>
+    </Button>
   );
 }
 
@@ -36,32 +50,40 @@ export default function VersionPanel({
 }: Props) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-700">Corrected</h3>
-          <CopyButton text={correctedVersion} />
-        </div>
-        <p className="whitespace-pre-wrap text-base leading-relaxed text-slate-900">
-          {correctedVersion}
-        </p>
-      </section>
-
-      <section className="rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 shadow-sm">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-emerald-800">
-            More natural
-          </h3>
-          <CopyButton text={naturalVersion} />
-        </div>
-        <p className="whitespace-pre-wrap text-base leading-relaxed text-slate-900">
-          {naturalVersion}
-        </p>
-        {naturalNote && (
-          <p className="mt-3 border-t border-emerald-200 pt-2 text-xs text-emerald-900/80">
-            {naturalNote}
+      <Card className="gap-3">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold">Corrected</CardTitle>
+          <CardAction>
+            <CopyButton text={correctedVersion} />
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          <p className="text-base leading-relaxed whitespace-pre-wrap">
+            {correctedVersion}
           </p>
-        )}
-      </section>
+        </CardContent>
+      </Card>
+
+      <Card className="gap-3 border-emerald-300 bg-emerald-50/60 shadow-sm ring-1 ring-emerald-200/60 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:ring-emerald-500/20">
+        <CardHeader>
+          <CardTitle className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+            More natural
+          </CardTitle>
+          <CardAction>
+            <CopyButton text={naturalVersion} />
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          <p className="text-base leading-relaxed whitespace-pre-wrap">
+            {naturalVersion}
+          </p>
+          {naturalNote && (
+            <p className="mt-3 border-t border-emerald-200 pt-2 text-xs text-emerald-800/80 dark:border-emerald-500/20 dark:text-emerald-300/80">
+              {naturalNote}
+            </p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

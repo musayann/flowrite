@@ -1,5 +1,9 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+
 type Props = {
   value: string;
   onChange: (value: string) => void;
@@ -26,7 +30,7 @@ export default function AnalyzeForm({
       }}
       className="flex flex-col gap-3"
     >
-      <textarea
+      <Textarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => {
@@ -37,22 +41,19 @@ export default function AnalyzeForm({
         }}
         placeholder="Paste a sentence or short paragraph…"
         rows={5}
-        className="w-full resize-y rounded-lg border border-slate-300 bg-white p-4 text-base leading-relaxed shadow-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+        className="resize-y text-base leading-relaxed"
       />
       <div className="flex items-center justify-between gap-4">
         <span
-          className={`text-xs ${tooLong ? "text-red-600" : "text-slate-500"}`}
+          className={`text-xs ${tooLong ? "text-destructive" : "text-muted-foreground"}`}
         >
           {value.length}/{maxChars} characters
-          <span className="ml-2 text-slate-400">· ⌘/Ctrl + Enter to analyze</span>
+          <span className="ml-2 opacity-70">· ⌘/Ctrl + Enter to analyze</span>
         </span>
-        <button
-          type="submit"
-          disabled={!canSubmit}
-          className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-        >
+        <Button type="submit" disabled={!canSubmit}>
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
           {loading ? "Analyzing…" : "Analyze"}
-        </button>
+        </Button>
       </div>
     </form>
   );

@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AlertCircle } from "lucide-react";
 import AnalyzeForm from "@/components/AnalyzeForm";
 import HighlightedText from "@/components/HighlightedText";
 import IssueCard from "@/components/IssueCard";
 import VersionPanel from "@/components/VersionPanel";
 import HistoryList from "@/components/HistoryList";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { AnalysisResult } from "@/lib/schema";
 import {
   addHistory,
@@ -70,57 +73,70 @@ export default function Home() {
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
       <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">
-          Flowrite
+        <h1 className="text-3xl font-bold tracking-tight">
+          Sharpen your sentences
         </h1>
-        <p className="mt-1 max-w-2xl text-slate-600">
+        <p className="mt-1 max-w-2xl text-muted-foreground">
           Feedback for advanced English writers — coherence, structure, clarity,
           information flow, word choice, connectors, articles, and prepositions.
           Not grammar drills, accent, or sounding native.
         </p>
       </header>
 
-      <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
+      <div className="grid gap-8 lg:grid-cols-[1fr_300px]">
         <div className="flex flex-col gap-6">
-          <AnalyzeForm
-            value={input}
-            onChange={setInput}
-            onSubmit={analyze}
-            loading={loading}
-            maxChars={MAX_CHARS}
-          />
+          <Card>
+            <CardContent>
+              <AnalyzeForm
+                value={input}
+                onChange={setInput}
+                onSubmit={analyze}
+                loading={loading}
+                maxChars={MAX_CHARS}
+              />
+            </CardContent>
+          </Card>
 
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-              {error}
-            </div>
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Couldn’t analyze</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           {result && (
             <div className="flex flex-col gap-6">
-              <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <h2 className="mb-3 text-sm font-semibold text-slate-700">
-                  Your text
-                </h2>
-                <HighlightedText
-                  original={analyzed}
-                  issues={result.issues}
-                  activeIndex={activeIndex}
-                  onActivate={setActiveIndex}
-                />
-              </section>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-semibold text-muted-foreground">
+                    Your text
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <HighlightedText
+                    original={analyzed}
+                    issues={result.issues}
+                    activeIndex={activeIndex}
+                    onActivate={setActiveIndex}
+                  />
+                </CardContent>
+              </Card>
 
               <section>
-                <h2 className="mb-3 text-sm font-semibold text-slate-700">
+                <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
                   Issues{" "}
-                  <span className="font-normal text-slate-400">
+                  <span className="font-normal opacity-70">
                     ({result.issues.length})
                   </span>
                 </h2>
                 {result.issues.length === 0 ? (
-                  <p className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-                    No issues found — this reads clearly and coherently.
-                  </p>
+                  <Alert>
+                    <AlertTitle>No issues found</AlertTitle>
+                    <AlertDescription>
+                      This reads clearly and coherently.
+                    </AlertDescription>
+                  </Alert>
                 ) : (
                   <ul className="flex flex-col gap-3">
                     {result.issues.map((issue, i) => (
@@ -137,7 +153,7 @@ export default function Home() {
               </section>
 
               <section>
-                <h2 className="mb-3 text-sm font-semibold text-slate-700">
+                <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
                   Rewrites
                 </h2>
                 <VersionPanel
