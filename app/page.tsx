@@ -126,7 +126,7 @@ export default function Home() {
               <section>
                 <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
                   Issues{" "}
-                  <span className="font-normal opacity-70">
+                  <span className="font-normal">
                     ({result.issues.length})
                   </span>
                 </h2>

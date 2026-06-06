@@ -36,11 +36,15 @@ export default function IssueCard({ issue, index, active, onActivate }: Props) {
         </div>
       </CardHeader>
       <CardContent className="px-4">
-        <p className="text-sm">{issue.explanation}</p>
-        <p className="mt-2 border-l-2 pl-3 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">Rule: </span>
-          {issue.rule}
-        </p>
+        <p className="text-sm leading-relaxed">{issue.explanation}</p>
+        <div className="mt-3 border-l-2 pl-3">
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Rule
+          </p>
+          <p className="mt-1 text-sm leading-relaxed text-foreground">
+            {issue.rule}
+          </p>
+        </div>
       </CardContent>
     </Card>
   );

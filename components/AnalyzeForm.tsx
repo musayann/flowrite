@@ -48,7 +48,7 @@ export default function AnalyzeForm({
           className={`text-xs ${tooLong ? "text-destructive" : "text-muted-foreground"}`}
         >
           {value.length}/{maxChars} characters
-          <span className="ml-2 opacity-70">· ⌘/Ctrl + Enter to analyze</span>
+          <span className="ml-2">· ⌘/Ctrl + Enter to analyze</span>
         </span>
         <Button type="submit" disabled={!canSubmit}>
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}

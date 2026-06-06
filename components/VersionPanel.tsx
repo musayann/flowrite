@@ -78,7 +78,7 @@ export default function VersionPanel({
             {naturalVersion}
           </p>
           {naturalNote && (
-            <p className="mt-3 border-t border-emerald-200 pt-2 text-xs text-emerald-800/80 dark:border-emerald-500/20 dark:text-emerald-300/80">
+            <p className="mt-3 border-t border-emerald-200 pt-2 text-xs text-emerald-800 dark:border-emerald-500/20 dark:text-emerald-300">
               {naturalNote}
             </p>
           )}

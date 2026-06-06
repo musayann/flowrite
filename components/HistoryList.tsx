@@ -58,7 +58,7 @@ export default function HistoryList({
                     className="flex-1 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
                   >
                     <span className="line-clamp-2">{entry.input}</span>
-                    <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                    <span className="mt-0.5 block text-xs text-muted-foreground">
                       {entry.result.issues.length} issue
                       {entry.result.issues.length === 1 ? "" : "s"} ·{" "}
                       {new Date(entry.createdAt).toLocaleString()}
