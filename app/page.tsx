@@ -12,7 +12,6 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { AnalysisResult } from "@/lib/schema";
 import {
   addHistory,
-  clearHistory,
   loadHistory,
   removeHistory,
   type HistoryEntry,
@@ -170,7 +169,6 @@ export default function Home() {
           entries={history}
           onSelect={selectHistory}
           onRemove={(id) => setHistory(removeHistory(id))}
-          onClear={() => setHistory(clearHistory())}
         />
       </div>
     </main>
