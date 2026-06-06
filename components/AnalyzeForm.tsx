@@ -50,10 +50,20 @@ export default function AnalyzeForm({
           {value.length}/{maxChars} characters
           <span className="ml-2">· ⌘/Ctrl + Enter to analyze</span>
         </span>
-        <Button type="submit" disabled={!canSubmit}>
-          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          {loading ? "Analyzing…" : "Analyze"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => onChange("")}
+            disabled={value.length === 0 || loading}
+          >
+            Clear
+          </Button>
+          <Button type="submit" disabled={!canSubmit}>
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {loading ? "Analyzing…" : "Analyze"}
+          </Button>
+        </div>
       </div>
     </form>
   );
