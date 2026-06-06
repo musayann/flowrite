@@ -68,7 +68,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           ? Response.redirect(new URL("/", nextUrl))
           : true;
       }
-      return isLoggedIn;
+      // There's only one destination (the main page), so redirect to /login
+      // explicitly instead of returning `false`, which would append an unused
+      // ?callbackUrl param.
+      return isLoggedIn
+        ? true
+        : Response.redirect(new URL("/login", nextUrl));
     },
   },
 });
