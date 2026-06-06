@@ -1,36 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Flowrite
 
-## Getting Started
+An AI writing coach for English. Paste a sentence or short paragraph and Flowrite returns categorized, inline-highlighted feedback on your writing — plus two rewrites you can copy and learn from.
 
-First, run the development server:
+## What it does
+
+- **Paste text** (up to 1500 characters) and analyze it with **Cmd/Ctrl+Enter**.
+- **Inline highlights** — issues are marked directly in your text, color-coded by category, with hover tooltips.
+- **8 issue categories** — coherence, information flow, structure, word choice, connector, article, preposition, and clarity.
+- **Actionable detail per issue** — the exact excerpt, an explanation of what's off, and a reusable rule you can apply elsewhere.
+- **Two rewrites** — a *corrected* version (minimal, targeted fixes) and a *more natural* version (idiomatic rephrasing). Both are one click to copy.
+- **History sidebar** — your last ~20 analyses, stored locally in your browser.
+- **Light / dark mode.**
+
+## Tech stack
+
+- **Next.js 16** (App Router) with **React 19** and **TypeScript**
+- **Tailwind CSS v4** + **shadcn/ui** (Radix primitives)
+- **Auth.js v5** — single-user login (Credentials provider, JWT sessions)
+- **OpenAI SDK** with Structured Outputs (`json_schema`) for schema-valid responses
+- **Zod** — schemas shared between the client, the API, and the model
+- No database — analysis is stateless on the server, and history lives in the browser's `localStorage`.
+
+## Getting started
+
+### Prerequisites
+
+- Node.js and npm
+- An OpenAI API key
+
+### Setup
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Create your local env file
+cp env.local.example .env.local
+
+# 3. Fill in .env.local (see below), then generate an auth secret:
+npx auth secret
+```
+
+### Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) and log in with the credentials you set in `.env.local`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Configure these in `.env.local` (see `env.local.example` for the template). Values shown there are placeholders — fill in your own.
 
-## Learn More
+| Variable           | Purpose                                                        |
+| ------------------ | -------------------------------------------------------------- |
+| `OPENAI_API_KEY`   | Your OpenAI API key. Used server-side only.                    |
+| `OPENAI_MODEL`     | Optional. Any model supporting Structured Outputs. Defaults to `gpt-4o`. |
+| `AUTH_SECRET`      | Signing key for sessions. Generate with `npx auth secret`.     |
+| `AUTH_USERNAME`    | The single login username.                                     |
+| `AUTH_PASSWORD`    | The single login password.                                     |
+| `AUTH_TRUST_HOST`  | Set for self-hosted / non-Vercel deployments.                  |
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Command         | Description                       |
+| --------------- | --------------------------------- |
+| `npm run dev`   | Start the development server.     |
+| `npm run build` | Build for production.             |
+| `npm run start` | Run the production build.         |
+| `npm run lint`  | Lint with ESLint.                 |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## How it works
 
-## Deploy on Vercel
+When you submit text, the client calls `app/api/analyze/route.ts`, which sends a request to the OpenAI API using a JSON schema derived from `lib/schema.ts`. Structured Outputs guarantee the model returns schema-valid JSON (issues + rewrites), which the UI then renders as highlights and rewrite panels. Your OpenAI API key stays on the server and never reaches the browser.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+app/
+  api/analyze/route.ts   # Analysis endpoint — calls OpenAI
+  login/                 # Login page
+  page.tsx               # Main UI
+components/               # AnalyzeForm, HighlightedText, IssueCard, VersionPanel, HistoryList, ...
+lib/
+  schema.ts              # Zod schemas (issues, categories, result)
+  prompt.ts              # System prompt for the coach
+  openai.ts              # OpenAI client
+auth.ts                  # Auth.js configuration
+```
