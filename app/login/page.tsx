@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { AuthError } from "next-auth";
+import { AuthError, CredentialsSignin } from "next-auth";
 import { signIn } from "@/auth";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +23,11 @@ async function authenticate(formData: FormData) {
     });
   } catch (error) {
     // A successful sign-in throws a NEXT_REDIRECT error that must propagate.
+    // Forward the error code (e.g. "rate_limited") so the page can tailor its
+    // message; default to the generic credentials code.
+    if (error instanceof CredentialsSignin) {
+      redirect(`/login?error=CredentialsSignin&code=${error.code}`);
+    }
     if (error instanceof AuthError) {
       redirect("/login?error=CredentialsSignin");
     }
@@ -33,9 +38,13 @@ async function authenticate(formData: FormData) {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; code?: string }>;
 }) {
-  const { error } = await searchParams;
+  const { error, code } = await searchParams;
+  const message =
+    code === "rate_limited"
+      ? "Too many attempts. Please wait a few minutes and try again."
+      : "Invalid username or password.";
 
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-16">
@@ -77,7 +86,7 @@ export default async function LoginPage({
             </div>
             {error && (
               <p className="text-sm text-destructive" role="alert">
-                Invalid username or password.
+                {message}
               </p>
             )}
             <Button type="submit" className="mt-2">
