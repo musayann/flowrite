@@ -26,7 +26,11 @@ export function loadHistory(): HistoryEntry[] {
   }
 }
 
-/** Prepend a new entry and persist (capped). Returns the updated list. */
+/**
+ * Prepend a new entry and persist (capped). Returns the updated list.
+ * Re-analyzing the same input replaces its existing entry rather than
+ * adding a duplicate, so each distinct text appears at most once.
+ */
 export function addHistory(
   input: string,
   result: AnalysisResult,
@@ -40,7 +44,8 @@ export function addHistory(
     result,
     createdAt: Date.now(),
   };
-  const next = [entry, ...loadHistory()].slice(0, MAX_ENTRIES);
+  const existing = loadHistory().filter((e) => e.input !== input);
+  const next = [entry, ...existing].slice(0, MAX_ENTRIES);
   persist(next);
   return next;
 }
