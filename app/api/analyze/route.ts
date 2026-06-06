@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { zodResponseFormat } from "openai/helpers/zod";
+import { auth } from "@/auth";
 import { getOpenAI, OPENAI_MODEL } from "@/lib/openai";
 import { SYSTEM_PROMPT } from "@/lib/prompt";
 import { AnalysisResult } from "@/lib/schema";
@@ -9,6 +10,12 @@ export const runtime = "nodejs";
 const MAX_CHARS = 1500;
 
 export async function POST(req: Request) {
+  // Defense in depth — proxy gating is optimistic, so re-check at the data source.
+  const session = await auth();
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   let text: unknown;
   try {
     ({ text } = await req.json());
