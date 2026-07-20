@@ -1,3 +1,4 @@
+import { observeOpenAI } from "@langfuse/openai";
 import OpenAI from "openai";
 
 /**
@@ -16,7 +17,10 @@ export function getOpenAI(): OpenAI {
     throw new Error("OPENAI_API_KEY is not set. Add it to .env.local.");
   }
   if (!client) {
-    client = new OpenAI({ apiKey });
+    client = observeOpenAI(new OpenAI({ apiKey }), {
+      generationName: "analyze-writing",
+      generationMetadata: { feature: "writing-analysis" },
+    });
   }
   return client;
 }

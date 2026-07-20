@@ -9,6 +9,10 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@langfuse/openai": "^5.9.1",
+    "@langfuse/otel": "^5.9.1",
+    "@langfuse/tracing": "^5.9.1",
+    "@vercel/otel": "^2.1.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.17.0",

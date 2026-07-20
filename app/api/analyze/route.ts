@@ -1,6 +1,11 @@
-import { NextResponse } from "next/server";
+import {
+  propagateAttributes,
+  startActiveObservation,
+} from "@langfuse/tracing";
+import { after, NextResponse } from "next/server";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { auth } from "@/auth";
+import { flushLangfuse } from "@/instrumentation.node";
 import { getOpenAI, OPENAI_MODEL } from "@/lib/openai";
 import { SYSTEM_PROMPT } from "@/lib/prompt";
 import { AnalysisResult } from "@/lib/schema";
@@ -15,6 +20,7 @@ export async function POST(req: Request) {
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  const userId = session.user.name || "authenticated-user";
 
   let text: unknown;
   try {
@@ -46,42 +52,87 @@ export async function POST(req: Request) {
     );
   }
 
-  try {
-    const completion = await openai.chat.completions.parse({
-      model: OPENAI_MODEL,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: text },
-      ],
-      response_format: zodResponseFormat(AnalysisResult, "analysis"),
-    });
+  const response = await startActiveObservation(
+    "writing-analysis",
+    (observation) =>
+      propagateAttributes(
+        {
+          traceName: "writing-analysis",
+          userId,
+          tags: ["writing-analysis"],
+          metadata: {
+            endpoint: "/api/analyze",
+            model: OPENAI_MODEL,
+          },
+        },
+        async () => {
+          observation.update({
+            input: { text },
+            metadata: { model: OPENAI_MODEL },
+          });
 
-    const message = completion.choices[0]?.message;
-    if (message?.refusal) {
-      return NextResponse.json(
-        { error: "The model declined to analyze this text." },
-        { status: 422 },
-      );
-    }
-    const parsed = message?.parsed;
-    if (!parsed) {
-      return NextResponse.json(
-        { error: "The model returned an unexpected response. Please try again." },
-        { status: 502 },
-      );
-    }
-    return NextResponse.json({ result: parsed });
-  } catch (err) {
-    const status =
-      typeof err === "object" && err !== null && "status" in err
-        ? Number((err as { status?: number }).status)
-        : undefined;
-    const message =
-      status === 401
-        ? "OpenAI rejected the API key. Check OPENAI_API_KEY."
-        : status === 429
-          ? "Rate limited by OpenAI. Please wait a moment and try again."
-          : "Failed to analyze the text. Please try again.";
-    return NextResponse.json({ error: message }, { status: status && status >= 400 ? status : 502 });
-  }
+          try {
+            const completion = await openai.chat.completions.parse({
+              model: OPENAI_MODEL,
+              messages: [
+                { role: "system", content: SYSTEM_PROMPT },
+                { role: "user", content: text },
+              ],
+              response_format: zodResponseFormat(AnalysisResult, "analysis"),
+            });
+
+            const message = completion.choices[0]?.message;
+            if (message?.refusal) {
+              const error = "The model declined to analyze this text.";
+              observation.update({
+                level: "WARNING",
+                statusMessage: error,
+                output: { error },
+              });
+              return NextResponse.json({ error }, { status: 422 });
+            }
+
+            const parsed = message?.parsed;
+            if (!parsed) {
+              const error =
+                "The model returned an unexpected response. Please try again.";
+              observation.update({
+                level: "ERROR",
+                statusMessage: error,
+                output: { error },
+              });
+              return NextResponse.json({ error }, { status: 502 });
+            }
+
+            observation.update({ output: parsed });
+            return NextResponse.json({ result: parsed });
+          } catch (err) {
+            const status =
+              typeof err === "object" && err !== null && "status" in err
+                ? Number((err as { status?: number }).status)
+                : undefined;
+            const message =
+              status === 401
+                ? "OpenAI rejected the API key. Check OPENAI_API_KEY."
+                : status === 429
+                  ? "Rate limited by OpenAI. Please wait a moment and try again."
+                  : "Failed to analyze the text. Please try again.";
+            observation.update({
+              level: "ERROR",
+              statusMessage: message,
+              output: { error: message, providerStatus: status },
+            });
+            return NextResponse.json(
+              { error: message },
+              { status: status && status >= 400 ? status : 502 },
+            );
+          }
+        },
+      ),
+  );
+
+  // Keep serverless runtimes alive long enough to export the completed trace.
+  after(flushLangfuse);
+
+  return response;
 }

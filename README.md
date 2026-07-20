@@ -25,8 +25,9 @@ An AI writing coach for English. Paste a sentence or short paragraph and Flowrit
 
 ### Prerequisites
 
-- Node.js and npm
+- Node.js 20+ and npm
 - An OpenAI API key
+- A Langfuse project and API keys (optional; the app still runs without tracing)
 
 ### Setup
 
@@ -57,6 +58,12 @@ Configure these in `.env.local` (see `env.local.example` for the template). Valu
 | ------------------ | -------------------------------------------------------------- |
 | `OPENAI_API_KEY`   | Your OpenAI API key. Used server-side only.                    |
 | `OPENAI_MODEL`     | Optional. Any model supporting Structured Outputs. Defaults to `gpt-4o`. |
+| `LANGFUSE_PUBLIC_KEY` | Langfuse project public key. Tracing starts when both keys are set. |
+| `LANGFUSE_SECRET_KEY` | Langfuse project secret key. Server-side only. |
+| `LANGFUSE_BASE_URL` | Optional. Langfuse region or self-hosted URL. Defaults to the EU cloud. |
+| `LANGFUSE_TRACING_ENVIRONMENT` | Optional environment label, such as `development` or `production`. |
+| `LANGFUSE_RELEASE` | Optional application release/version attached to traces. |
+| `LANGFUSE_TRACING_ENABLED` | Optional kill switch. Set to `false` to disable exporting traces. |
 | `AUTH_SECRET`      | Signing key for sessions. Generate with `npx auth secret`.     |
 | `AUTH_USERNAME`    | The single login username.                                     |
 | `AUTH_PASSWORD`    | The single login password.                                     |
@@ -75,6 +82,8 @@ Configure these in `.env.local` (see `env.local.example` for the template). Valu
 
 When you submit text, the client calls `app/api/analyze/route.ts`, which sends a request to the OpenAI API using a JSON schema derived from `lib/schema.ts`. Structured Outputs guarantee the model returns schema-valid JSON (issues + rewrites), which the UI then renders as highlights and rewrite panels. Your OpenAI API key stays on the server and never reaches the browser.
 
+When Langfuse credentials are configured, each analysis creates a `writing-analysis` trace containing the authenticated user, input, structured output, model, token usage, cost, latency, and provider errors. The input and generated output are therefore sent to your configured Langfuse project; set `LANGFUSE_TRACING_ENABLED=false` when that is not appropriate for an environment.
+
 ## Project structure
 
 ```
@@ -86,6 +95,8 @@ components/               # AnalyzeForm, HighlightedText, IssueCard, VersionPane
 lib/
   schema.ts              # Zod schemas (issues, categories, result)
   prompt.ts              # System prompt for the coach
-  openai.ts              # OpenAI client
+  openai.ts              # OpenAI client wrapped with Langfuse tracing
+instrumentation.ts       # Next.js instrumentation entry point
+instrumentation.node.ts  # Langfuse OpenTelemetry exporter
 auth.ts                  # Auth.js configuration
 ```
