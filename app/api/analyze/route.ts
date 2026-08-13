@@ -5,14 +5,13 @@ import {
 import { after, NextResponse } from "next/server";
 import { zodResponseFormat } from "openai/helpers/zod";
 import { auth } from "@/auth";
+import { MAX_CHARS } from "@/lib/constants";
 import { flushLangfuse } from "@/instrumentation.node";
 import { getOpenAI, OPENAI_MODEL } from "@/lib/openai";
 import { SYSTEM_PROMPT } from "@/lib/prompt";
 import { AnalysisResult } from "@/lib/schema";
 
 export const runtime = "nodejs";
-
-const MAX_CHARS = 1500;
 
 export async function POST(req: Request) {
   // Defense in depth — proxy gating is optimistic, so re-check at the data source.

@@ -9,6 +9,7 @@ import VersionPanel from "@/components/VersionPanel";
 import HistoryList from "@/components/HistoryList";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { MAX_CHARS } from "@/lib/constants";
 import type { AnalysisResult } from "@/lib/schema";
 import {
   addHistory,
@@ -16,8 +17,6 @@ import {
   removeHistory,
   type HistoryEntry,
 } from "@/lib/history";
-
-const MAX_CHARS = 1500;
 
 export default function Home() {
   const [input, setInput] = useState("");

@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
-import NextAuth, { CredentialsSignin } from "next-auth";
+import NextAuth, { CredentialsSignin, type Session, type User } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import type { NextRequest } from "next/server";
 import {
   checkRateLimit,
   recordFailure,
@@ -15,6 +16,9 @@ import {
  * against those values — it never creates users, so self-registration is
  * impossible by construction. Sessions are stateless JWTs, so no database is
  * needed.
+ *
+ * The pieces below are exported as standalone functions rather than inlined in
+ * the NextAuth config so they can be unit-tested directly.
  */
 
 /**
@@ -22,7 +26,7 @@ import {
  * The `code` is surfaced as `?code=rate_limited` on the login redirect so the
  * UI can show a distinct message instead of "invalid credentials".
  */
-class RateLimitError extends CredentialsSignin {
+export class RateLimitError extends CredentialsSignin {
   code = "rate_limited";
 }
 
@@ -31,14 +35,14 @@ class RateLimitError extends CredentialsSignin {
  * self-hosted deploy sets. Falls back to a shared bucket so that requests we
  * can't attribute still can't brute-force unthrottled.
  */
-function clientIp(request: Request): string {
+export function clientIp(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) return forwarded.split(",")[0].trim();
   return request.headers.get("x-real-ip")?.trim() || "unknown";
 }
 
 /** Constant-time string comparison that doesn't leak length via early return. */
-function safeEqual(a: string, b: string): boolean {
+export function safeEqual(a: string, b: string): boolean {
   const aBuf = Buffer.from(a);
   const bBuf = Buffer.from(b);
   if (aBuf.length !== bBuf.length) {
@@ -47,6 +51,65 @@ function safeEqual(a: string, b: string): boolean {
     return false;
   }
   return timingSafeEqual(aBuf, bBuf);
+}
+
+/** Validate submitted credentials against the configured single account. */
+export function authorize(
+  credentials: Partial<Record<"username" | "password", unknown>>,
+  request: Request,
+): User | null {
+  const expectedUser = process.env.AUTH_USERNAME;
+  const expectedPass = process.env.AUTH_PASSWORD;
+  if (!expectedUser || !expectedPass) {
+    throw new Error(
+      "AUTH_USERNAME and AUTH_PASSWORD must be set in the environment.",
+    );
+  }
+
+  // Throttle brute-force attempts by client IP before doing any work.
+  const ip = clientIp(request);
+  if (checkRateLimit(ip).limited) {
+    throw new RateLimitError();
+  }
+
+  const username =
+    typeof credentials?.username === "string" ? credentials.username : "";
+  const password =
+    typeof credentials?.password === "string" ? credentials.password : "";
+
+  // Evaluate both comparisons so a wrong username and a wrong password
+  // take a similar amount of work.
+  const userOk = safeEqual(username, expectedUser);
+  const passOk = safeEqual(password, expectedPass);
+  if (userOk && passOk) {
+    recordSuccess(ip);
+    return { id: "1", name: expectedUser };
+  }
+
+  // Count the failure; if this trips the limit, surface it immediately.
+  if (recordFailure(ip).limited) {
+    throw new RateLimitError();
+  }
+  return null;
+}
+
+/** Route gating applied to every request matched by `proxy.ts`. */
+export function authorized({
+  auth,
+  request: { nextUrl },
+}: {
+  auth: Session | null;
+  request: NextRequest;
+}): boolean | Response {
+  const isLoggedIn = !!auth?.user;
+  const isOnLogin = nextUrl.pathname.startsWith("/login");
+  if (isOnLogin) {
+    return isLoggedIn ? Response.redirect(new URL("/", nextUrl)) : true;
+  }
+  // There's only one destination (the main page), so redirect to /login
+  // explicitly instead of returning `false`, which would append an unused
+  // ?callbackUrl param.
+  return isLoggedIn ? true : Response.redirect(new URL("/login", nextUrl));
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -59,58 +122,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         username: { label: "Username", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      authorize(credentials, request) {
-        const expectedUser = process.env.AUTH_USERNAME;
-        const expectedPass = process.env.AUTH_PASSWORD;
-        if (!expectedUser || !expectedPass) {
-          throw new Error(
-            "AUTH_USERNAME and AUTH_PASSWORD must be set in the environment.",
-          );
-        }
-
-        // Throttle brute-force attempts by client IP before doing any work.
-        const ip = clientIp(request);
-        if (checkRateLimit(ip).limited) {
-          throw new RateLimitError();
-        }
-
-        const username =
-          typeof credentials?.username === "string" ? credentials.username : "";
-        const password =
-          typeof credentials?.password === "string" ? credentials.password : "";
-
-        // Evaluate both comparisons so a wrong username and a wrong password
-        // take a similar amount of work.
-        const userOk = safeEqual(username, expectedUser);
-        const passOk = safeEqual(password, expectedPass);
-        if (userOk && passOk) {
-          recordSuccess(ip);
-          return { id: "1", name: expectedUser };
-        }
-
-        // Count the failure; if this trips the limit, surface it immediately.
-        if (recordFailure(ip).limited) {
-          throw new RateLimitError();
-        }
-        return null;
-      },
+      authorize,
     }),
   ],
-  callbacks: {
-    authorized({ auth, request: { nextUrl } }) {
-      const isLoggedIn = !!auth?.user;
-      const isOnLogin = nextUrl.pathname.startsWith("/login");
-      if (isOnLogin) {
-        return isLoggedIn
-          ? Response.redirect(new URL("/", nextUrl))
-          : true;
-      }
-      // There's only one destination (the main page), so redirect to /login
-      // explicitly instead of returning `false`, which would append an unused
-      // ?callbackUrl param.
-      return isLoggedIn
-        ? true
-        : Response.redirect(new URL("/login", nextUrl));
-    },
-  },
+  callbacks: { authorized },
 });

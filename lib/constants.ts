@@ -10,3 +10,11 @@
  * model is told the same thing in `lib/prompt.ts`.
  */
 export const LOCALE = "en-GB";
+
+/**
+ * Maximum length of a single analysis request, in characters.
+ *
+ * Enforced in two places that must agree: the client disables submission past
+ * it (`AnalyzeForm`), and `/api/analyze` rejects anything longer.
+ */
+export const MAX_CHARS = 1500;
