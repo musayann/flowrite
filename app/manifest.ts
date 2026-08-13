@@ -1,7 +1,10 @@
 import type { MetadataRoute } from "next";
+import { LOCALE } from "@/lib/constants";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    lang: LOCALE,
+    dir: "ltr",
     name: "Flowrite — Sentence Structure & Coherence Coach",
     short_name: "Flowrite",
     description:

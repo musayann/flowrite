@@ -31,7 +31,7 @@ export async function POST(req: Request) {
 
   if (typeof text !== "string" || text.trim().length === 0) {
     return NextResponse.json(
-      { error: "Please provide some text to analyze." },
+      { error: "Please provide some text to analyse." },
       { status: 400 },
     );
   }
@@ -83,7 +83,7 @@ export async function POST(req: Request) {
 
             const message = completion.choices[0]?.message;
             if (message?.refusal) {
-              const error = "The model declined to analyze this text.";
+              const error = "The model declined to analyse this text.";
               observation.update({
                 level: "WARNING",
                 statusMessage: error,
@@ -116,7 +116,7 @@ export async function POST(req: Request) {
                 ? "OpenAI rejected the API key. Check OPENAI_API_KEY."
                 : status === 429
                   ? "Rate limited by OpenAI. Please wait a moment and try again."
-                  : "Failed to analyze the text. Please try again.";
+                  : "Failed to analyse the text. Please try again.";
             observation.update({
               level: "ERROR",
               statusMessage: message,

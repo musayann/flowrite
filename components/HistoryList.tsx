@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ChevronDown, Trash2 } from "lucide-react";
+import { LOCALE } from "@/lib/constants";
 import type { HistoryEntry } from "@/lib/history";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,16 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
+/** en-GB day/month order and 24-hour clock, regardless of browser locale. */
+const timestamp = new Intl.DateTimeFormat(LOCALE, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+function formatTimestamp(createdAt: number): string {
+  return timestamp.format(new Date(createdAt));
+}
 
 type Props = {
   entries: HistoryEntry[];
@@ -70,7 +81,7 @@ export default function HistoryList({ entries, onSelect, onRemove }: Props) {
                     <span className="mt-0.5 block text-xs text-muted-foreground">
                       {entry.result.issues.length} issue
                       {entry.result.issues.length === 1 ? "" : "s"} ·{" "}
-                      {new Date(entry.createdAt).toLocaleString()}
+                      {formatTimestamp(entry.createdAt)}
                     </span>
                   </button>
                   <Button

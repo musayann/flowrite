@@ -1,11 +1,12 @@
 # Flowrite
 
-An AI writing coach for English. Paste a sentence or short paragraph and Flowrite returns categorized, inline-highlighted feedback on your writing — plus two rewrites you can copy and learn from.
+An AI writing coach for British English (en-GB). Paste a sentence or short paragraph and Flowrite returns categorised, inline-highlighted feedback on your writing — plus two rewrites you can copy and learn from.
 
 ## What it does
 
-- **Paste text** (up to 1500 characters) and analyze it with **Cmd/Ctrl+Enter**.
-- **Inline highlights** — issues are marked directly in your text, color-coded by category, with hover tooltips.
+- **Paste text** (up to 1500 characters) and analyse it with **Cmd/Ctrl+Enter**.
+- **British English throughout** — the interface, the explanations, and both rewrites use en-GB; US spellings in your text are flagged as word-choice issues.
+- **Inline highlights** — issues are marked directly in your text, colour-coded by category, with hover tooltips.
 - **8 issue categories** — coherence, information flow, structure, word choice, connector, article, preposition, and clarity.
 - **Actionable detail per issue** — the exact excerpt, an explanation of what's off, and a reusable rule you can apply elsewhere.
 - **Two rewrites** — a *corrected* version (minimal, targeted fixes) and a *more natural* version (idiomatic rephrasing). Both are one click to copy.

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { LOCALE } from "@/lib/constants";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SiteHeader } from "@/components/site-header";
@@ -35,7 +36,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang={LOCALE}
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >

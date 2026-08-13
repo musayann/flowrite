@@ -76,9 +76,10 @@ export default function Home() {
           Sharpen your sentences
         </h1>
         <p className="mt-1 max-w-2xl text-muted-foreground">
-          Feedback for advanced English writers — coherence, structure, clarity,
-          information flow, word choice, connectors, articles, and prepositions.
-          Not grammar drills, accent, or sounding native.
+          Paste a paragraph and see what a careful reader would stumble over:
+          the order of your ideas, a connector doing the wrong job, a
+          preposition that sits slightly off. It assumes your English is already
+          good, so you won&rsquo;t get grammar drills.
         </p>
       </header>
 
@@ -99,7 +100,7 @@ export default function Home() {
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Couldn’t analyze</AlertTitle>
+              <AlertTitle>Couldn’t analyse</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
