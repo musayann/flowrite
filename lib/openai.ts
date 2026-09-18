@@ -1,26 +1,41 @@
 import { observeOpenAI } from "@langfuse/openai";
 import OpenAI from "openai";
+import type { Provider } from "@/lib/models";
 
 /**
- * Server-only OpenAI client. The API key is read from the environment and
- * never reaches the browser. Importing this module from a client component
- * would fail the build, which is the intended guardrail.
+ * Server-only model clients. API keys are read from the environment and never
+ * reach the browser. Importing this module from a client component would fail
+ * the build, which is the intended guardrail.
+ *
+ * Every supported provider speaks the OpenAI wire format, so one SDK pointed at
+ * a different `baseURL` covers all of them. The Langfuse wrapper is applied per
+ * client at construction and observes whatever `model` each call passes, so it
+ * needs no per-request handling.
  */
 
-export const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o";
+const clients = new Map<Provider["id"], OpenAI>();
 
-let client: OpenAI | null = null;
-
-export function getOpenAI(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
+export function getClient(provider: Provider): OpenAI {
+  const apiKey = process.env[provider.apiKeyEnv];
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not set. Add it to .env.local.");
+    throw new Error(`${provider.apiKeyEnv} is not set. Add it to .env.local.`);
   }
-  if (!client) {
-    client = observeOpenAI(new OpenAI({ apiKey }), {
+
+  const cached = clients.get(provider.id);
+  if (cached) return cached;
+
+  const client = observeOpenAI(
+    new OpenAI({ apiKey, baseURL: provider.baseURL }),
+    {
       generationName: "analyze-writing",
       generationMetadata: { feature: "writing-analysis" },
-    });
-  }
+    },
+  );
+  clients.set(provider.id, client);
   return client;
+}
+
+/** Test hook — drops the cached clients so a fresh key/baseURL is picked up. */
+export function __resetClients(): void {
+  clients.clear();
 }

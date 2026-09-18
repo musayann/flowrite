@@ -3,17 +3,19 @@ import { MAX_CHARS } from "@/lib/constants";
 import { makeResult } from "../fixtures";
 
 const auth = vi.fn();
-const getOpenAI = vi.fn();
+const getClient = vi.fn();
 const parse = vi.fn();
+const create = vi.fn();
 const after = vi.fn();
 const flushLangfuse = vi.fn();
 const observationUpdate = vi.fn();
 
 vi.mock("@/auth", () => ({ auth: () => auth() }));
 
+// Only the client is faked. The real `lib/models.ts` and `lib/analysis.ts`
+// run, so these tests also cover model resolution and the output-mode split.
 vi.mock("@/lib/openai", () => ({
-  getOpenAI: () => getOpenAI(),
-  OPENAI_MODEL: "gpt-4o-test",
+  getClient: (provider: unknown) => getClient(provider),
 }));
 
 vi.mock("@/instrumentation.node", () => ({
@@ -50,12 +52,13 @@ function respondWith(message: unknown) {
 
 beforeEach(() => {
   auth.mockResolvedValue({ user: { name: "yannick" } });
-  getOpenAI.mockReturnValue({ chat: { completions: { parse } } });
+  getClient.mockReturnValue({ chat: { completions: { parse, create } } });
   respondWith({ parsed: makeResult() });
 });
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("auth gate", () => {
@@ -107,9 +110,9 @@ describe("request validation", () => {
   });
 });
 
-describe("OpenAI client setup", () => {
+describe("client setup", () => {
   it("returns 500 when the API key is not configured", async () => {
-    getOpenAI.mockImplementation(() => {
+    getClient.mockImplementation(() => {
       throw new Error("OPENAI_API_KEY is not set. Add it to .env.local.");
     });
     const res = await POST(request({ text: "hello" }));
@@ -135,7 +138,7 @@ describe("model responses", () => {
   it("sends the system prompt and the user text to the model", async () => {
     await POST(request({ text: "hello" }));
     const call = parse.mock.calls[0][0];
-    expect(call.model).toBe("gpt-4o-test");
+    expect(call.model).toBe("gpt-4o");
     expect(call.messages[0].role).toBe("system");
     expect(call.messages[1]).toEqual({ role: "user", content: "hello" });
     expect(call.response_format.type).toBe("json_schema");
@@ -204,7 +207,11 @@ describe("tracing", () => {
     await POST(request({ text: "hello" }));
     expect(observationUpdate).toHaveBeenCalledWith({
       input: { text: "hello" },
-      metadata: { model: "gpt-4o-test" },
+      metadata: {
+        endpoint: "/api/analyze",
+        provider: "openai",
+        model: "gpt-4o",
+      },
     });
   });
 
@@ -222,5 +229,128 @@ describe("tracing", () => {
     parse.mockRejectedValue(new Error("boom"));
     await POST(request({ text: "hello" }));
     expect(after).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("model selection", () => {
+  it("defaults to gpt-4o when nothing is configured", async () => {
+    vi.stubEnv("MODEL", "");
+    vi.stubEnv("OPENAI_MODEL", "");
+    await POST(request({ text: "hello" }));
+    expect(parse.mock.calls[0][0].model).toBe("gpt-4o");
+  });
+
+  it("uses the model named by MODEL", async () => {
+    vi.stubEnv("MODEL", "google:gemini-3.7-flash");
+    await POST(request({ text: "hello" }));
+    expect(parse.mock.calls[0][0].model).toBe("gemini-3.7-flash");
+    expect(getClient).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "google" }),
+    );
+  });
+
+  it("falls back to a bare legacy OPENAI_MODEL", async () => {
+    vi.stubEnv("MODEL", "");
+    vi.stubEnv("OPENAI_MODEL", "gpt-5-mini");
+    await POST(request({ text: "hello" }));
+    expect(parse.mock.calls[0][0].model).toBe("gpt-5-mini");
+  });
+
+  it("re-reads the environment on every request, with no restart", async () => {
+    vi.stubEnv("MODEL", "openai:gpt-4o");
+    await POST(request({ text: "hello" }));
+    vi.stubEnv("MODEL", "openai:gpt-5-mini");
+    await POST(request({ text: "hello" }));
+    expect(parse.mock.calls.map((c) => c[0].model)).toEqual([
+      "gpt-4o",
+      "gpt-5-mini",
+    ]);
+  });
+
+  it("returns 500 when MODEL names something unsupported", async () => {
+    vi.stubEnv("MODEL", "openai:gpt-imaginary");
+    const res = await POST(request({ text: "hello" }));
+    expect(res.status).toBe(500);
+    await expect(res.json()).resolves.toEqual({
+      error: "Server is configured with an unsupported model. Check MODEL.",
+    });
+    expect(parse).not.toHaveBeenCalled();
+  });
+
+  it("lets the request body override the configured model", async () => {
+    vi.stubEnv("MODEL", "openai:gpt-4o");
+    await POST(request({ text: "hello", model: "openai:gpt-5-mini" }));
+    expect(parse.mock.calls[0][0].model).toBe("gpt-5-mini");
+  });
+
+  it.each([
+    ["an unlisted model", "openai:gpt-imaginary"],
+    ["an unknown provider", "acme:whatever"],
+    ["a non-string", 42],
+    ["an empty string", ""],
+    ["a prototype key", "constructor"],
+  ])("rejects %s in the body with 400", async (_label, model) => {
+    const res = await POST(request({ text: "hello", model }));
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toEqual({ error: "Unknown model." });
+    // The allowlist must reject before any provider is billed.
+    expect(parse).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe("tool-call providers", () => {
+  const toolCall = (args: unknown) => ({
+    choices: [
+      {
+        message: {
+          tool_calls: [
+            {
+              type: "function",
+              function: { name: "analysis", arguments: JSON.stringify(args) },
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  beforeEach(() => {
+    vi.stubEnv("MODEL", "anthropic:claude-sonnet-5");
+  });
+
+  it("forces a tool call instead of using response_format", async () => {
+    const result = makeResult();
+    create.mockResolvedValue(toolCall(result));
+
+    const res = await POST(request({ text: "hello" }));
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ result });
+
+    const call = create.mock.calls[0][0];
+    expect(call.model).toBe("claude-sonnet-5");
+    expect(call.response_format).toBeUndefined();
+    expect(call.tool_choice).toEqual({
+      type: "function",
+      function: { name: "analysis" },
+    });
+    expect(parse).not.toHaveBeenCalled();
+  });
+
+  it("returns 502 when the tool arguments do not match the schema", async () => {
+    create.mockResolvedValue(toolCall({ issues: "not an array" }));
+    const res = await POST(request({ text: "hello" }));
+    expect(res.status).toBe(502);
+    await expect(res.json()).resolves.toEqual({
+      error: "The model returned an unexpected response. Please try again.",
+    });
+  });
+
+  it("reports the provider by name on a 401", async () => {
+    create.mockRejectedValue(Object.assign(new Error("nope"), { status: 401 }));
+    const res = await POST(request({ text: "hello" }));
+    await expect(res.json()).resolves.toEqual({
+      error: "Anthropic rejected the API key. Check ANTHROPIC_API_KEY.",
+    });
   });
 });

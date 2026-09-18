@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PROVIDERS } from "@/lib/models";
 
 const openAiConstructor = vi.fn();
 const observeOpenAI = vi.fn((...args: unknown[]) => args[0]);
@@ -15,7 +16,7 @@ vi.mock("@langfuse/openai", () => ({
   observeOpenAI: (client: unknown, opts: unknown) => observeOpenAI(client, opts),
 }));
 
-/** The module caches its client, so each test needs a fresh module registry. */
+/** The module caches clients, so each test needs a fresh module registry. */
 async function importFresh() {
   vi.resetModules();
   return import("@/lib/openai");
@@ -29,56 +30,80 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("getOpenAI", () => {
-  it("throws a setup-shaped error when the API key is missing", async () => {
-    vi.stubEnv("OPENAI_API_KEY", "");
-    const { getOpenAI } = await importFresh();
-    expect(() => getOpenAI()).toThrow(/OPENAI_API_KEY is not set/);
+describe("getClient", () => {
+  it("throws a setup-shaped error naming the provider's key variable", async () => {
+    vi.stubEnv("GEMINI_API_KEY", "");
+    const { getClient } = await importFresh();
+    expect(() => getClient(PROVIDERS.google)).toThrow(
+      /GEMINI_API_KEY is not set/,
+    );
   });
 
-  it("constructs the client with the configured key", async () => {
+  it("constructs the OpenAI client with the key and no baseURL", async () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test-123");
-    const { getOpenAI } = await importFresh();
-    getOpenAI();
-    expect(openAiConstructor).toHaveBeenCalledWith({ apiKey: "sk-test-123" });
+    const { getClient } = await importFresh();
+    getClient(PROVIDERS.openai);
+    expect(openAiConstructor).toHaveBeenCalledWith({
+      apiKey: "sk-test-123",
+      baseURL: undefined,
+    });
+  });
+
+  it.each([
+    ["google", "GEMINI_API_KEY"],
+    ["anthropic", "ANTHROPIC_API_KEY"],
+  ] as const)("points %s at its compatible endpoint", async (id, keyEnv) => {
+    vi.stubEnv(keyEnv, "key-123");
+    const { getClient } = await importFresh();
+    getClient(PROVIDERS[id]);
+    expect(openAiConstructor).toHaveBeenCalledWith({
+      apiKey: "key-123",
+      baseURL: PROVIDERS[id].baseURL,
+    });
+    expect(PROVIDERS[id].baseURL).toMatch(/^https:\/\//);
   });
 
   it("wraps the client in Langfuse observation metadata", async () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test-123");
-    const { getOpenAI } = await importFresh();
-    getOpenAI();
+    const { getClient } = await importFresh();
+    getClient(PROVIDERS.openai);
     expect(observeOpenAI).toHaveBeenCalledWith(expect.anything(), {
       generationName: "analyze-writing",
       generationMetadata: { feature: "writing-analysis" },
     });
   });
 
-  it("caches the client across calls", async () => {
+  it("caches per provider", async () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test-123");
-    const { getOpenAI } = await importFresh();
-    expect(getOpenAI()).toBe(getOpenAI());
+    const { getClient } = await importFresh();
+    expect(getClient(PROVIDERS.openai)).toBe(getClient(PROVIDERS.openai));
     expect(openAiConstructor).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps providers on separate cache entries", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-test-123");
+    vi.stubEnv("GEMINI_API_KEY", "key-123");
+    const { getClient } = await importFresh();
+    expect(getClient(PROVIDERS.openai)).not.toBe(getClient(PROVIDERS.google));
+    expect(openAiConstructor).toHaveBeenCalledTimes(2);
   });
 
   it("still throws if the key is removed after a client was built", async () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test-123");
-    const { getOpenAI } = await importFresh();
-    getOpenAI();
+    const { getClient } = await importFresh();
+    getClient(PROVIDERS.openai);
     vi.stubEnv("OPENAI_API_KEY", "");
-    expect(() => getOpenAI()).toThrow(/OPENAI_API_KEY is not set/);
-  });
-});
-
-describe("OPENAI_MODEL", () => {
-  it("defaults to gpt-4o", async () => {
-    vi.stubEnv("OPENAI_MODEL", "");
-    const { OPENAI_MODEL } = await importFresh();
-    expect(OPENAI_MODEL).toBe("gpt-4o");
+    expect(() => getClient(PROVIDERS.openai)).toThrow(
+      /OPENAI_API_KEY is not set/,
+    );
   });
 
-  it("honours the OPENAI_MODEL environment override", async () => {
-    vi.stubEnv("OPENAI_MODEL", "gpt-5-mini");
-    const { OPENAI_MODEL } = await importFresh();
-    expect(OPENAI_MODEL).toBe("gpt-5-mini");
+  it("rebuilds after __resetClients", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-test-123");
+    const { getClient, __resetClients } = await importFresh();
+    getClient(PROVIDERS.openai);
+    __resetClients();
+    getClient(PROVIDERS.openai);
+    expect(openAiConstructor).toHaveBeenCalledTimes(2);
   });
 });
