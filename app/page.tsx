@@ -5,6 +5,7 @@ import ComposeView from "@/components/ComposeView";
 import ReviewView from "@/components/ReviewView";
 import HistoryDrawer from "@/components/HistoryDrawer";
 import { useHistoryDrawer } from "@/components/history-drawer-context";
+import { useNewText } from "@/components/new-text-context";
 import type { AnalysisResult } from "@/lib/schema";
 import { resolveFixes } from "@/lib/fixes";
 import { orderIssues } from "@/lib/highlight";
@@ -106,6 +107,10 @@ export default function Home() {
     setReview(null);
     toTop();
   }
+
+  // The brand in the header: from a review, start a new text, as "New text"
+  // does. On the form, keep whatever is being written there.
+  useNewText(() => (review ? compose("") : toTop()));
 
   return (
     <main className="flex-1 bg-muted/40">

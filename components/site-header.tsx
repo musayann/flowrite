@@ -1,8 +1,9 @@
-import { LogOut, Sparkles } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { auth, signOut } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/mode-toggle";
 import { HistoryButton } from "@/components/history-drawer-context";
+import { BrandLink } from "@/components/new-text-context";
 
 export async function SiteHeader() {
   const session = await auth();
@@ -10,12 +11,7 @@ export async function SiteHeader() {
   return (
     <header className="sticky top-0 z-40 border-b bg-card/90 backdrop-blur supports-[backdrop-filter]:bg-card/75">
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between gap-4 pr-2 pl-4 sm:px-6">
-        <div className="flex items-center gap-2">
-          <Sparkles aria-hidden="true" className="h-5 w-5 text-primary" />
-          <span className="text-base font-semibold tracking-tight">
-            Flowrite
-          </span>
-        </div>
+        <BrandLink />
         <div className="flex items-center gap-1.5">
           {session?.user && <HistoryButton />}
           <ModeToggle />

@@ -71,10 +71,12 @@ describe("ReviewView heading", () => {
 });
 
 describe("ReviewView notes", () => {
-  it("starts with every note closed", () => {
+  it("starts with the first note open, but not the sheet", () => {
     const { note } = setup();
-    expect(note(1)).toHaveAttribute("aria-expanded", "false");
-    expect(screen.getByText("– of 3")).toBeInTheDocument();
+    expect(note(1)).toHaveAttribute("aria-expanded", "true");
+    expect(note(2)).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("1 of 3")).toBeInTheDocument();
+    expect(sheet()).not.toBeInTheDocument();
   });
 
   it("opens a note from the text, and the sheet for small screens", async () => {
@@ -116,8 +118,10 @@ describe("ReviewView notes", () => {
     expect(note(2)).toHaveAttribute("aria-expanded", "true");
   });
 
-  it("starts stepping from the first note", async () => {
+  it("starts stepping from the first note when none is open", async () => {
     const { user, margin, note } = setup();
+    await user.click(note(1));
+    expect(screen.getByText("– of 3")).toBeInTheDocument();
     await user.click(within(margin()).getByRole("button", { name: "Next issue" }));
     expect(note(1)).toHaveAttribute("aria-expanded", "true");
   });
@@ -162,7 +166,6 @@ describe("ReviewView filter", () => {
 
   it("closes an open note the filter hides, but keeps one it shows", async () => {
     const { user, note } = setup();
-    await user.click(note(1));
     await user.click(chip(/^Word choice/));
     expect(note(1)).toHaveAttribute("aria-expanded", "true");
     await user.click(chip(/^Article/));

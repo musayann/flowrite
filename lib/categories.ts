@@ -91,6 +91,15 @@ export const CATEGORY_STYLES: Record<Category, CategoryStyle> = {
     tint: "bg-teal-100 dark:bg-teal-500/20",
     active: "border-teal-300 ring-3 ring-teal-500/20 dark:border-teal-500/50",
   },
+  punctuation: {
+    label: "Punctuation",
+    dot: "bg-lime-500",
+    underline: "decoration-lime-500",
+    number: "bg-lime-700 text-white dark:bg-lime-400 dark:text-lime-950",
+    text: "text-lime-800 dark:text-lime-300",
+    tint: "bg-lime-100 dark:bg-lime-500/20",
+    active: "border-lime-300 ring-3 ring-lime-500/20 dark:border-lime-500/50",
+  },
   clarity: {
     label: "Clarity",
     dot: "bg-fuchsia-500",

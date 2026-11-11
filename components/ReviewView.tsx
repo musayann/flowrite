@@ -83,7 +83,10 @@ export default function ReviewView({
   onEdit,
   onNewText,
 }: Props) {
-  const [openIndex, setOpenIndex] = useState<number | null>(null);
+  // Start with the first note open, so there's something to read straight away.
+  const [openIndex, setOpenIndex] = useState<number | null>(
+    issues.length > 0 ? 0 : null,
+  );
   const [sheetOpen, setSheetOpen] = useState(false);
   const [filter, setFilter] = useState<Category | null>(null);
 

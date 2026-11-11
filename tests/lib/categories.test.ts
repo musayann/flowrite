@@ -32,6 +32,11 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain(category);
   });
 
+  it("offers exactly the categories the schema allows", () => {
+    // Offering one the schema rejects makes the model misfile it elsewhere.
+    expect(SYSTEM_PROMPT).toContain(`one of: ${CATEGORIES.join(", ")}.`);
+  });
+
   it("asks for British English", () => {
     expect(SYSTEM_PROMPT).toMatch(/British English \(en-GB\)/);
   });

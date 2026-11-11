@@ -6,6 +6,7 @@ import {
   HistoryButton,
   HistoryDrawerProvider,
 } from "@/components/history-drawer-context";
+import { BrandLink, NewTextProvider } from "@/components/new-text-context";
 import type { HistoryEntry } from "@/lib/history";
 import type { AnalysisResult } from "@/lib/schema";
 import { makeIssue, makeResult } from "../fixtures";
@@ -26,6 +27,8 @@ const addHistory = vi.fn((input: string, result: AnalysisResult) =>
 );
 const removeHistory = vi.fn((id: string) => save(entries.filter((e) => e.id !== id)));
 const clearHistory = vi.fn(() => save([]));
+
+vi.mock("next/link", () => import("../next-link"));
 
 vi.mock("@/lib/history", () => ({
   addHistory: (input: string, result: AnalysisResult) => addHistory(input, result),
@@ -61,8 +64,11 @@ const fetchMock = vi.fn();
 function setup() {
   render(
     <HistoryDrawerProvider>
-      <HistoryButton />
-      <Home />
+      <NewTextProvider>
+        <BrandLink />
+        <HistoryButton />
+        <Home />
+      </NewTextProvider>
     </HistoryDrawerProvider>,
   );
   return { user: userEvent.setup() };
@@ -205,6 +211,19 @@ describe("leaving the review", () => {
     const { user } = await review();
     await user.click(screen.getByRole("button", { name: "New text" }));
     expect(textbox()).toHaveValue("");
+  });
+
+  it("starts over from the brand too", async () => {
+    const { user } = await review();
+    await user.click(screen.getByRole("link", { name: "Flowrite" }));
+    expect(textbox()).toHaveValue("");
+  });
+
+  it("keeps a draft on the form when the brand is clicked", async () => {
+    const { user } = setup();
+    await user.type(textbox(), "Half a thought");
+    await user.click(screen.getByRole("link", { name: "Flowrite" }));
+    expect(textbox()).toHaveValue("Half a thought");
   });
 
   it("copies the corrected text", async () => {

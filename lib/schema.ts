@@ -15,6 +15,7 @@ export const CATEGORIES = [
   "connector",
   "article",
   "preposition",
+  "punctuation",
   "clarity",
 ] as const;
 
