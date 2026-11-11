@@ -1,10 +1,10 @@
 import { useMemo, useSyncExternalStore } from "react";
 
 /*
- * Stands in for `next/navigation`'s `useSearchParams`, which needs a mounted
- * App Router. Like the real one, it follows `history.pushState` and
- * `replaceState` as well as Back and Forward, and the server render sees the
- * URL's search params too.
+ * Stands in for `next/navigation`, whose hooks need a mounted App Router.
+ * The router moves through `history.pushState` and `replaceState`, and the
+ * hooks follow those as well as Back and Forward. The server render sees the
+ * URL too, as the real ones do for a page rendered per request.
  */
 
 const listeners = new Set<() => void>();
@@ -26,9 +26,28 @@ function subscribe(listener: () => void) {
   };
 }
 
-const search = () => window.location.search;
+const pathname = () => window.location.pathname;
 
-export function useSearchParams() {
-  const current = useSyncExternalStore(subscribe, search, search);
-  return useMemo(() => new URLSearchParams(current), [current]);
+export function usePathname() {
+  return useSyncExternalStore(subscribe, pathname, pathname);
+}
+
+/** The app's one dynamic route is `/review/[id]`. */
+export function useParams() {
+  const current = usePathname();
+  return useMemo((): Record<string, string> => {
+    const match = /^\/review\/([^/]+)$/.exec(current);
+    return match ? { id: decodeURIComponent(match[1]) } : {};
+  }, [current]);
+}
+
+const router = {
+  push: (href: string) => window.history.pushState(null, "", href),
+  replace: (href: string) => window.history.replaceState(null, "", href),
+  back: () => window.history.back(),
+  forward: () => window.history.forward(),
+};
+
+export function useRouter() {
+  return router;
 }

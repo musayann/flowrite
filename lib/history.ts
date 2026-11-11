@@ -7,6 +7,11 @@ export type HistoryEntry = {
   createdAt: number;
 };
 
+/** Where the review of history entry `id` lives. */
+export function reviewPath(id: string): string {
+  return `/review/${encodeURIComponent(id)}`;
+}
+
 const KEY = "flowrite:history";
 const MAX_ENTRIES = 20;
 

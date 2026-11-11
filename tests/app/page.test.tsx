@@ -2,18 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
-import Home from "@/app/page";
+import { usePathname } from "next/navigation";
+import ComposePage from "@/app/page";
+import ReviewPage from "@/app/review/[id]/page";
 import {
   HistoryButton,
   HistoryDrawerProvider,
+  SiteHistoryDrawer,
 } from "@/components/history-drawer-context";
 import { BrandLink, NewTextProvider } from "@/components/new-text-context";
+import { DraftProvider } from "@/components/draft-context";
 import type { HistoryEntry } from "@/lib/history";
 import type { AnalysisResult } from "@/lib/schema";
 import { makeIssue, makeResult } from "../fixtures";
 
 // An in-memory stand-in for the history store, so tests control what's saved.
 let entries: HistoryEntry[] = [];
+let saves = 0;
 const listeners = new Set<() => void>();
 function save(next: HistoryEntry[]) {
   entries = next;
@@ -22,7 +27,7 @@ function save(next: HistoryEntry[]) {
 }
 const addHistory = vi.fn((input: string, result: AnalysisResult) =>
   save([
-    { id: `saved-${input}`, input, result, createdAt: Date.now() },
+    { id: `saved-${++saves}`, input, result, createdAt: Date.now() },
     ...entries.filter((e) => e.input !== input),
   ]),
 );
@@ -32,7 +37,8 @@ const clearHistory = vi.fn(() => save([]));
 vi.mock("next/link", () => import("../next-link"));
 vi.mock("next/navigation", () => import("../next-navigation"));
 
-vi.mock("@/lib/history", () => ({
+vi.mock("@/lib/history", async (importOriginal) => ({
+  reviewPath: (await importOriginal<typeof import("@/lib/history")>()).reviewPath,
   addHistory: (input: string, result: AnalysisResult) => addHistory(input, result),
   removeHistory: (id: string) => removeHistory(id),
   clearHistory: () => clearHistory(),
@@ -63,12 +69,21 @@ const stored = (id: string, input: string, result = RESULT): HistoryEntry => ({
 
 const fetchMock = vi.fn();
 
+/** The app's two pages, picked by the URL as the App Router would. */
+function Routes() {
+  return usePathname().startsWith("/review/") ? <ReviewPage /> : <ComposePage />;
+}
+
+/** What the root layout puts around the pages. */
 const app = (
   <HistoryDrawerProvider>
     <NewTextProvider>
-      <BrandLink />
-      <HistoryButton />
-      <Home />
+      <DraftProvider>
+        <BrandLink />
+        <HistoryButton />
+        <Routes />
+        <SiteHistoryDrawer />
+      </DraftProvider>
     </NewTextProvider>
   </HistoryDrawerProvider>
 );
@@ -78,8 +93,7 @@ function setup() {
   return { user: userEvent.setup() };
 }
 
-/** The text the URL names, if any. */
-const textParam = () => new URLSearchParams(window.location.search).get("text");
+const path = () => window.location.pathname;
 
 const textbox = () => screen.getByRole("textbox", { name: "Your text" });
 const submit = () => screen.getByRole("button", { name: /^Analys/ });
@@ -106,6 +120,7 @@ async function review(text = "The cat sat.") {
 
 beforeEach(() => {
   entries = [];
+  saves = 0;
   listeners.clear();
   window.history.replaceState(null, "", "/");
   vi.stubGlobal("fetch", fetchMock);
@@ -335,24 +350,36 @@ describe("history", () => {
 });
 
 describe("the URL", () => {
-  it("names the text under review, and forgets it on leaving", async () => {
+  it("gives the review its own page, and leaves it for the form", async () => {
     const { user } = await review();
-    expect(textParam()).toBe("saved-The cat sat.");
+    expect(path()).toBe("/review/saved-1");
     await user.click(screen.getByRole("button", { name: "New text" }));
-    expect(window.location.search).toBe("");
+    expect(path()).toBe("/");
   });
 
-  it("names a text opened from history", async () => {
+  it("opens a text from history on its page", async () => {
     entries = [stored("a", "The cat sat.")];
     const { user } = setup();
     const recent = screen.getByRole("region", { name: "Recent" });
     await user.click(within(recent).getByRole("button", { name: /The cat sat\./ }));
-    expect(textParam()).toBe("a");
+    expect(path()).toBe("/review/a");
+  });
+
+  it("moves from one review to another from the drawer", async () => {
+    entries = [stored("a", "The cat sat."), stored("b", "A dog ran.", makeResult())];
+    window.history.replaceState(null, "", "/review/a");
+    const { user } = setup();
+    await user.click(screen.getByRole("button", { name: "History" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: /A dog ran\./ }),
+    );
+    expect(path()).toBe("/review/b");
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("A dog ran.");
   });
 
   it("comes back to the same text on refresh", () => {
     entries = [stored("a", "The cat sat.")];
-    window.history.replaceState(null, "", "/?text=a");
+    window.history.replaceState(null, "", "/review/a");
     setup();
     expect(screen.getByRole("tabpanel")).toHaveTextContent("The cat1 sat2.");
     expect(fetchMock).not.toHaveBeenCalled();
@@ -361,21 +388,35 @@ describe("the URL", () => {
   it("goes back to the form, and forward to the text again", async () => {
     await review();
     window.history.back();
-    expect(await screen.findByRole("textbox", { name: "Your text" })).toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: "Your text" })).toHaveValue(
+      "The cat sat.",
+    );
     window.history.forward();
     expect(await screen.findByRole("tablist")).toBeInTheDocument();
   });
 
-  it("drops a text history doesn't have, and shows the form", () => {
-    window.history.replaceState(null, "", "/?text=gone");
+  it("keeps a draft while a past text is open", async () => {
+    entries = [stored("a", "The cat sat.")];
+    const { user } = setup();
+    await user.type(textbox(), "Half a thought");
+    const recent = screen.getByRole("region", { name: "Recent" });
+    await user.click(within(recent).getByRole("button", { name: /The cat sat\./ }));
+    window.history.back();
+    expect(await screen.findByRole("textbox", { name: "Your text" })).toHaveValue(
+      "Half a thought",
+    );
+  });
+
+  it("sends a text history doesn't have to the form", async () => {
+    window.history.replaceState(null, "", "/review/gone");
     setup();
-    expect(textbox()).toBeInTheDocument();
-    expect(window.location.search).toBe("");
+    expect(await screen.findByRole("textbox", { name: "Your text" })).toBeInTheDocument();
+    expect(path()).toBe("/");
   });
 
   it("doesn't flash the form while restoring a text", () => {
     entries = [stored("a", "The cat sat.")];
-    window.history.replaceState(null, "", "/?text=a");
+    window.history.replaceState(null, "", "/review/a");
     // The server, and hydration, can't see history yet.
     expect(renderToString(app)).not.toContain("Your text");
   });
