@@ -62,10 +62,56 @@ export function clearHistory(): HistoryEntry[] {
 }
 
 function persist(entries: HistoryEntry[]): void {
-  if (!canUseStorage()) return;
-  try {
-    window.localStorage.setItem(KEY, JSON.stringify(entries));
-  } catch {
-    // Quota or serialization failure — non-fatal; history just won't persist.
+  snapshot = entries;
+  if (canUseStorage()) {
+    try {
+      window.localStorage.setItem(KEY, JSON.stringify(entries));
+    } catch {
+      // Quota or serialization failure — non-fatal; history just won't persist.
+    }
   }
+  notify();
+}
+
+/*
+ * The history as an external store, for `useSyncExternalStore`: read from
+ * storage once, then kept in step with every write here and with writes from
+ * other tabs. The server, which has no storage, always sees an empty history.
+ */
+
+const listeners = new Set<() => void>();
+let snapshot: HistoryEntry[] | undefined;
+const NONE: HistoryEntry[] = [];
+
+function notify(): void {
+  for (const listener of listeners) listener();
+}
+
+function onStorage(e: StorageEvent): void {
+  if (e.key !== null && e.key !== KEY) return;
+  snapshot = undefined;
+  notify();
+}
+
+export function subscribeHistory(listener: () => void): () => void {
+  if (listeners.size === 0 && typeof window !== "undefined") {
+    window.addEventListener("storage", onStorage);
+  }
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0 && typeof window !== "undefined") {
+      window.removeEventListener("storage", onStorage);
+    }
+  };
+}
+
+/** The current history; the same array until it changes. */
+export function getHistorySnapshot(): HistoryEntry[] {
+  snapshot ??= loadHistory();
+  return snapshot;
+}
+
+export function getServerHistorySnapshot(): HistoryEntry[] {
+  return NONE;
 }

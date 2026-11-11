@@ -1,5 +1,11 @@
-import { diffWords, markRange, type DiffPart, type MarkedPart } from "./diff";
-import { resolveHighlights, resolveRanges, type Range } from "./highlight";
+import {
+  diffWords,
+  markRange,
+  type DiffKind,
+  type DiffPart,
+  type MarkedPart,
+} from "./diff";
+import { resolveRanges, type Range } from "./highlight";
 import type { Issue } from "./schema";
 
 /**
@@ -158,106 +164,95 @@ export function resolveFixes(
 }
 
 /**
- * The corrected-text ranges to highlight, one per fix. Where two fixes
- * overlap, the earlier-listed issue keeps the range, matching `resolveRanges`.
+ * A fix as one line, `before → after`: the words it replaced and the words
+ * that replaced them. Words both sides share at either end are left out
+ * ("looking forward for → looking forward to" reads "for → to"), as long as
+ * each side keeps at least one word, so an insertion or deletion still shows
+ * the word it sits against.
  */
-export function fixRanges(fixes: (Fix | null)[]): Range[] {
-  const claimed: Range[] = [];
-  fixes.forEach((fix, issueIndex) => {
-    if (!fix || fix.afterStart >= fix.afterEnd) return;
-    const { afterStart: start, afterEnd: end } = fix;
-    if (claimed.some((r) => start < r.end && end > r.start)) return;
-    claimed.push({ start, end, issueIndex });
-  });
-  return claimed.sort((a, b) => a.start - b.start);
+export function fixSummary(fix: Fix): { before: string; after: string } {
+  const words = (parts: DiffPart[]) =>
+    parts
+      .map((p) => p.text)
+      .join("")
+      .split(/\s+/)
+      .filter(Boolean);
+  const before = words(fix.before);
+  const after = words(fix.after);
+
+  let head = 0;
+  while (
+    head < before.length - 1 &&
+    head < after.length - 1 &&
+    before[head] === after[head]
+  ) {
+    head++;
+  }
+  let tail = 0;
+  while (
+    tail < before.length - 1 - head &&
+    tail < after.length - 1 - head &&
+    before[before.length - 1 - tail] === after[after.length - 1 - tail]
+  ) {
+    tail++;
+  }
+  return {
+    before: before.slice(head, before.length - tail).join(" "),
+    after: after.slice(head, after.length - tail).join(" "),
+  };
 }
 
-/** A stretch of the original text: kept, or removed by the correction. */
-export type OriginalPart = { text: string; removed: boolean };
-
-/** An issue's excerpt in the original text, or a stretch no issue flagged. */
-export type OriginalSegment = {
+/** A stretch of the inline diff that turns the original into the correction. */
+export type ChangePart = {
+  text: string;
+  kind: DiffKind;
+  /** For removed or added text, the issue whose fix it belongs to; otherwise `null`. */
   issueIndex: number | null;
-  parts: OriginalPart[];
+  /** True on the last part of an issue's fix: where its number goes. */
+  markerAfter: boolean;
 };
 
 /**
- * Split `original` into issue excerpts and unflagged stretches, as
- * `resolveHighlights` does, then split each of those into the text the
- * correction kept and the text it removed. Joining every part always rebuilds
- * `original`. With no `corrected` text to compare against, nothing is removed.
+ * The whole text as one inline diff: unchanged stretches, then each change as
+ * its removed text followed by its added text. Joining every part except
+ * `added` rebuilds `original`; every part except `removed` rebuilds
+ * `corrected`. A change belongs to the first issue (in reading order) whose
+ * excerpt it touches, the same changes `resolveFixes` gives that issue.
  */
-export function originalSegments(
+export function changeParts(
   original: string,
   corrected: string,
   issues: Issue[],
-): OriginalSegment[] {
-  const segments = resolveHighlights(original, issues);
-  if (!corrected) {
-    return segments.map(({ text, issueIndex }) => ({
-      issueIndex,
-      parts: [{ text, removed: false }],
-    }));
+): ChangePart[] {
+  const plain = (text: string): ChangePart[] =>
+    text ? [{ text, kind: "same", issueIndex: null, markerAfter: false }] : [];
+  if (!original || !corrected) return plain(corrected || original);
+
+  const units = toUnits(diffWords(original, corrected));
+  const owner = new Map<Unit, number>();
+  for (const r of resolveRanges(original, issues)) {
+    for (const u of units) {
+      if (!owner.has(u) && touches(u, r)) owner.set(u, r.issueIndex);
+    }
   }
 
-  // The before side of the diff rebuilds `original`, so walk it alongside the
-  // segments and cut it wherever a segment starts or ends.
-  const before = diffWords(original, corrected).filter((p) => p.kind !== "added");
-  let k = 0;
-  let partStart = 0;
-  let pos = 0;
-  return segments.map(({ text, issueIndex }) => {
-    const end = pos + text.length;
-    const parts: OriginalPart[] = [];
-    while (pos < end) {
-      const part = before[k];
-      const partEnd = partStart + part.text.length;
-      const to = Math.min(end, partEnd);
-      parts.push({ text: original.slice(pos, to), removed: part.kind === "removed" });
-      pos = to;
-      if (to === partEnd) {
-        k++;
-        partStart = partEnd;
-      }
+  const parts: ChangePart[] = [];
+  for (const u of units) {
+    if (u.kind === "same") {
+      parts.push(...plain(original.slice(u.oStart, u.oEnd)));
+      continue;
     }
-    return { issueIndex, parts };
-  });
-}
+    const issueIndex = owner.get(u) ?? null;
+    if (u.removed) parts.push({ text: u.removed, kind: "removed", issueIndex, markerAfter: false });
+    if (u.added) parts.push({ text: u.added, kind: "added", issueIndex, markerAfter: false });
+  }
 
-/** A stretch of the corrected text: unchanged, or added by the correction. */
-export type CorrectedPart = {
-  text: string;
-  added: boolean;
-  /** For added text, the issue whose fix it falls in; otherwise `null`. */
-  issueIndex: number | null;
-};
-
-/**
- * Split `corrected` into unchanged and added stretches, tagging each added
- * stretch with the issue whose fix range (from `fixRanges`) it overlaps.
- * Removed text has no place in the corrected text, so it is left out; joining
- * every part always rebuilds `corrected`.
- */
-export function correctedParts(
-  original: string,
-  corrected: string,
-  ranges: Range[],
-): CorrectedPart[] {
-  if (!corrected) return [];
-  if (!original) return [{ text: corrected, added: false, issueIndex: null }];
-
-  const parts: CorrectedPart[] = [];
-  let offset = 0;
-  for (const part of diffWords(original, corrected)) {
-    if (part.kind === "removed") continue;
-    const start = offset;
-    const end = offset + part.text.length;
-    offset = end;
-    const added = part.kind === "added";
-    const owner = added
-      ? ranges.find((r) => start < r.end && end > r.start)
-      : undefined;
-    parts.push({ text: part.text, added, issueIndex: owner?.issueIndex ?? null });
+  const marked = new Set<number>();
+  for (let k = parts.length - 1; k >= 0; k--) {
+    const { issueIndex } = parts[k];
+    if (issueIndex === null || marked.has(issueIndex)) continue;
+    marked.add(issueIndex);
+    parts[k].markerAfter = true;
   }
   return parts;
 }

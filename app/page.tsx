@@ -1,60 +1,65 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertCircle } from "lucide-react";
-import AnalyzeForm from "@/components/AnalyzeForm";
-import HighlightedText from "@/components/HighlightedText";
-import CorrectedText from "@/components/CorrectedText";
-import CopyButton from "@/components/CopyButton";
-import IssueCard from "@/components/IssueCard";
-import VersionPanel from "@/components/VersionPanel";
-import HistoryList from "@/components/HistoryList";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { MAX_CHARS } from "@/lib/constants";
+import { useMemo, useState, useSyncExternalStore } from "react";
+import ComposeView from "@/components/ComposeView";
+import ReviewView from "@/components/ReviewView";
+import HistoryDrawer from "@/components/HistoryDrawer";
+import { useHistoryDrawer } from "@/components/history-drawer-context";
 import type { AnalysisResult } from "@/lib/schema";
-import { fixRanges, resolveFixes } from "@/lib/fixes";
+import { resolveFixes } from "@/lib/fixes";
+import { orderIssues } from "@/lib/highlight";
 import {
   addHistory,
-  loadHistory,
+  clearHistory,
+  getHistorySnapshot,
+  getServerHistorySnapshot,
   removeHistory,
+  subscribeHistory,
   type HistoryEntry,
 } from "@/lib/history";
 
+/** The analysis on screen: the text it is for, and when it was made. */
+type Review = {
+  input: string;
+  result: AnalysisResult;
+  createdAt: number;
+  /** Its history entry, when it has one. */
+  id: string | null;
+};
+
+const toTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
+
 export default function Home() {
   const [input, setInput] = useState("");
-  const [analyzed, setAnalyzed] = useState(""); // the text the result is for
-  const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [review, setReview] = useState<Review | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const history = useSyncExternalStore(
+    subscribeHistory,
+    getHistorySnapshot,
+    getServerHistorySnapshot,
+  );
+  const drawer = useHistoryDrawer();
 
-  useEffect(() => {
-    setHistory(loadHistory());
-  }, []);
-
-  // What the minimal correction changed for each issue, and where it landed.
+  // Number issues in reading order, and work out what the correction changed
+  // for each, in that same order.
+  const issues = useMemo(
+    () => (review ? orderIssues(review.input, review.result.issues) : []),
+    [review],
+  );
   const fixes = useMemo(
     () =>
-      result ? resolveFixes(analyzed, result.correctedVersion, result.issues) : [],
-    [analyzed, result],
+      review
+        ? resolveFixes(review.input, review.result.correctedVersion, issues)
+        : [],
+    [review, issues],
   );
-  const correctedRanges = useMemo(() => fixRanges(fixes), [fixes]);
 
   async function analyze() {
     const text = input.trim();
     if (!text) return;
     setLoading(true);
     setError(null);
-    setResult(null);
-    setActiveIndex(null);
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
@@ -66,10 +71,15 @@ export default function Home() {
         setError(data?.error ?? "Something went wrong.");
         return;
       }
-      const analysis = data.result as AnalysisResult;
-      setResult(analysis);
-      setAnalyzed(text);
-      setHistory(addHistory(text, analysis));
+      const result = data.result as AnalysisResult;
+      const next = addHistory(text, result);
+      setReview({
+        input: text,
+        result,
+        createdAt: Date.now(),
+        id: next[0]?.input === text ? next[0].id : null,
+      });
+      toTop();
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -79,132 +89,59 @@ export default function Home() {
 
   function selectHistory(entry: HistoryEntry) {
     setInput(entry.input);
-    setAnalyzed(entry.input);
-    setResult(entry.result);
+    setReview({
+      input: entry.input,
+      result: entry.result,
+      createdAt: entry.createdAt,
+      id: entry.id,
+    });
     setError(null);
-    setActiveIndex(null);
+    drawer.setOpen(false);
+    toTop();
+  }
+
+  /** Back to the form, with `text` in it. */
+  function compose(text: string) {
+    setInput(text);
+    setReview(null);
+    toTop();
   }
 
   return (
-    <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-10">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight">
-          Sharpen your sentences
-        </h1>
-        <p className="mt-1 max-w-2xl text-muted-foreground">
-          Paste a paragraph and see what a careful reader would stumble over:
-          the order of your ideas, a connector doing the wrong job, a
-          preposition that sits slightly off. It assumes your English is already
-          good, so you won&rsquo;t get grammar drills.
-        </p>
-      </header>
-
-      <div className="grid gap-8 lg:grid-cols-[1fr_300px]">
-        <div className="flex flex-col gap-6">
-          <Card>
-            <CardContent>
-              <AnalyzeForm
-                value={input}
-                onChange={setInput}
-                onSubmit={analyze}
-                loading={loading}
-                maxChars={MAX_CHARS}
-              />
-            </CardContent>
-          </Card>
-
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Couldn’t analyse</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {result && (
-            <div className="flex flex-col gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-semibold text-muted-foreground">
-                    Your text
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <HighlightedText
-                    original={analyzed}
-                    corrected={result.correctedVersion}
-                    issues={result.issues}
-                    activeIndex={activeIndex}
-                    onActivate={setActiveIndex}
-                  />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm font-semibold text-muted-foreground">
-                    Corrected
-                  </CardTitle>
-                  <CardAction>
-                    <CopyButton text={result.correctedVersion} />
-                  </CardAction>
-                </CardHeader>
-                <CardContent>
-                  <CorrectedText
-                    original={analyzed}
-                    corrected={result.correctedVersion}
-                    issues={result.issues}
-                    ranges={correctedRanges}
-                    activeIndex={activeIndex}
-                    onActivate={setActiveIndex}
-                  />
-                </CardContent>
-              </Card>
-
-              <section>
-                <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
-                  Issues{" "}
-                  <span className="font-normal">
-                    ({result.issues.length})
-                  </span>
-                </h2>
-                {result.issues.length === 0 ? (
-                  <Alert>
-                    <AlertTitle>No issues found</AlertTitle>
-                    <AlertDescription>
-                      This reads clearly and coherently.
-                    </AlertDescription>
-                  </Alert>
-                ) : (
-                  <ul className="flex flex-col gap-3">
-                    {result.issues.map((issue, i) => (
-                      <IssueCard
-                        key={i}
-                        issue={issue}
-                        index={i}
-                        active={activeIndex === i}
-                        onActivate={setActiveIndex}
-                        fix={fixes[i]}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </section>
-
-              <VersionPanel
-                naturalVersion={result.naturalVersion}
-                naturalNote={result.naturalNote}
-              />
-            </div>
-          )}
-        </div>
-
-        <HistoryList
-          entries={history}
-          onSelect={selectHistory}
-          onRemove={(id) => setHistory(removeHistory(id))}
+    <main className="flex-1 bg-muted/40">
+      {review ? (
+        <ReviewView
+          key={`${review.createdAt}:${review.id}`}
+          original={review.input}
+          result={review.result}
+          issues={issues}
+          fixes={fixes}
+          analysedAt={review.createdAt}
+          onEdit={() => compose(review.input)}
+          onNewText={() => compose("")}
         />
-      </div>
+      ) : (
+        <ComposeView
+          input={input}
+          onInputChange={setInput}
+          onSubmit={analyze}
+          loading={loading}
+          error={error}
+          history={history}
+          onSelectEntry={selectHistory}
+          onShowHistory={() => drawer.setOpen(true)}
+        />
+      )}
+      <HistoryDrawer
+        open={drawer.open}
+        onOpenChange={drawer.setOpen}
+        entries={history}
+        currentId={review?.id ?? null}
+        onSelect={selectHistory}
+        now={drawer.openedAt}
+        onRemove={removeHistory}
+        onClear={clearHistory}
+      />
     </main>
   );
 }

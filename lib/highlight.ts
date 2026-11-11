@@ -86,6 +86,18 @@ export function toSegments(text: string, ranges: Range[]): Segment[] {
   return segments;
 }
 
+/**
+ * `issues` in reading order: the located ones by where their excerpt sits in
+ * `original`, then any that can't be located, in the order they came. Numbering
+ * issues in this order makes the markers in the text count up from the top.
+ */
+export function orderIssues(original: string, issues: Issue[]): Issue[] {
+  const located = resolveRanges(original, issues).map((r) => r.issueIndex);
+  const placed = new Set(located);
+  const rest = issues.map((_, i) => i).filter((i) => !placed.has(i));
+  return [...located, ...rest].map((i) => issues[i]);
+}
+
 /** Resolve issue spans in the original and split it into renderable segments. */
 export function resolveHighlights(original: string, issues: Issue[]): Segment[] {
   return toSegments(original, resolveRanges(original, issues));

@@ -5,6 +5,7 @@ import { LOCALE } from "@/lib/constants";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SiteHeader } from "@/components/site-header";
+import { HistoryDrawerProvider } from "@/components/history-drawer-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -48,8 +49,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider delayDuration={150}>
-            <SiteHeader />
-            {children}
+            <HistoryDrawerProvider>
+              <SiteHeader />
+              {children}
+            </HistoryDrawerProvider>
           </TooltipProvider>
         </ThemeProvider>
       </body>

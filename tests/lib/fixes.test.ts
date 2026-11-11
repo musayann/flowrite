@@ -1,11 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  correctedParts,
-  fixRanges,
-  originalSegments,
+  changeParts,
+  fixSummary,
   resolveFixes,
+  type ChangePart,
   type Fix,
-  type OriginalSegment,
 } from "@/lib/fixes";
 import type { DiffPart } from "@/lib/diff";
 import { makeIssue } from "../fixtures";
@@ -106,139 +105,126 @@ describe("resolveFixes", () => {
   });
 });
 
-describe("fixRanges", () => {
-  it("returns one corrected-text range per fix, sorted by position", () => {
-    const fixes = resolveFixes(ORIGINAL, CORRECTED, [
-      issue("raised"),
-      issue("not there"),
-      issue("In the other hand"),
-    ]);
-    expect(
-      fixRanges(fixes).map((r) => [r.issueIndex, CORRECTED.slice(r.start, r.end)]),
-    ).toEqual([
-      [2, "On the other hand,"],
-      [0, "rose"],
-    ]);
-  });
-
-  const at = (afterStart: number, afterEnd: number): Fix => ({
-    before: [],
-    after: [],
-    afterStart,
-    afterEnd,
-  });
-
-  it("keeps the earlier issue when two fixes overlap", () => {
-    expect(fixRanges([at(5, 10), at(8, 12), at(10, 14)])).toEqual([
-      { start: 5, end: 10, issueIndex: 0 },
-      { start: 10, end: 14, issueIndex: 2 },
-    ]);
-  });
-
-  it("skips fixes with nothing left to mark", () => {
-    expect(fixRanges([null, at(3, 3)])).toEqual([]);
-  });
-});
-
-describe("correctedParts", () => {
-  const issues = [issue("raised"), issue("In the other hand")];
-  const ranges = fixRanges(resolveFixes(ORIGINAL, CORRECTED, issues));
-  const parts = correctedParts(ORIGINAL, CORRECTED, ranges);
-
-  it("rebuilds the corrected text", () => {
-    expect(parts.map((p) => p.text).join("")).toBe(CORRECTED);
-  });
-
-  it("flags only the text the correction added", () => {
-    expect(parts.filter((p) => p.added).map((p) => p.text)).toEqual([
-      "On",
-      ",",
-      "rose",
-      ",",
-      "an ",
-    ]);
-  });
-
-  it("links each addition to the issue whose fix it falls in", () => {
-    expect(
-      parts.filter((p) => p.added).map((p) => [p.text, p.issueIndex]),
-    ).toEqual([
-      ["On", 1],
-      [",", 1],
-      ["rose", 0],
-      [",", null],
-      ["an ", null],
-    ]);
-  });
-
-  it("never links unchanged text", () => {
-    expect(parts.filter((p) => !p.added).every((p) => p.issueIndex === null)).toBe(
-      true,
+describe("fixSummary", () => {
+  const summary = (before: string, after: string, excerpt: string) =>
+    fixSummary(
+      resolveFixes(before, after, [issue(excerpt)])[0]!,
     );
+
+  it("joins each side of a fix into one line", () => {
+    expect(fixSummary(fixOf("In the other hand")!)).toEqual({
+      before: "In the other hand",
+      after: "On the other hand,",
+    });
   });
 
-  it("returns the corrected text unchanged when there is no original", () => {
-    expect(correctedParts("", CORRECTED, [])).toEqual([
-      { text: CORRECTED, added: false, issueIndex: null },
-    ]);
+  it("leaves out the words both sides share at either end", () => {
+    expect(
+      summary("We look forward for it.", "We look forward to it.", "look forward for"),
+    ).toEqual({ before: "for", after: "to" });
+    expect(
+      summary(
+        "Then the results were discussed today.",
+        "Then we discussed the results today.",
+        "Then the results were discussed",
+      ),
+    ).toEqual({
+      before: "the results were discussed",
+      after: "we discussed the results",
+    });
   });
 
-  it("returns nothing for an empty correction", () => {
-    expect(correctedParts(ORIGINAL, "", [])).toEqual([]);
-  });
-
-  it("flags nothing when the texts are identical", () => {
-    expect(correctedParts(ORIGINAL, ORIGINAL, [])).toEqual([
-      { text: ORIGINAL, added: false, issueIndex: null },
-    ]);
+  it("keeps a word on each side of an insertion or deletion", () => {
+    expect(fixSummary(fixOf("engineer")!)).toEqual({
+      before: "engineer",
+      after: "an engineer",
+    });
+    expect(fixSummary(fixOf("about")!)).toEqual({
+      before: "about it.",
+      after: "it.",
+    });
+    expect(summary("We discuss about it.", "We discuss it.", "discuss about")).toEqual({
+      before: "discuss about",
+      after: "discuss",
+    });
   });
 });
 
-describe("originalSegments", () => {
-  /** Compact rendering: [-removed-], and <#n ...> around issue n's excerpt. */
-  const render = (segments: OriginalSegment[]) =>
-    segments
-      .map(({ issueIndex, parts }) => {
-        const text = parts
-          .map((p) => (p.removed ? `[-${p.text}-]` : p.text))
-          .join("");
-        return issueIndex === null ? text : `<#${issueIndex} ${text}>`;
+describe("changeParts", () => {
+  /** [-removed-] and {+added+}, each change tagged @issue, and #n where a number goes. */
+  const showChanges = (parts: ChangePart[]) =>
+    parts
+      .map((p) => {
+        if (p.kind === "same") return p.text;
+        const text = p.kind === "removed" ? `[-${p.text}-]` : `{+${p.text}+}`;
+        const owner = p.issueIndex === null ? "" : `@${p.issueIndex}`;
+        return text + owner + (p.markerAfter ? `#${p.issueIndex! + 1}` : "");
       })
       .join("");
 
-  const issues = [issue("raised"), issue("In the other hand"), issue("discuss about")];
-  const segments = originalSegments(ORIGINAL, CORRECTED, issues);
+  const ISSUES = [
+    issue("In the other hand"),
+    issue("raised"),
+    issue("about"),
+    issue("engineer"),
+  ];
 
-  it("rebuilds the original text", () => {
-    expect(
-      segments.flatMap((s) => s.parts.map((p) => p.text)).join(""),
-    ).toBe(ORIGINAL);
+  it("rebuilds the original without its additions and the correction without its removals", () => {
+    const parts = changeParts(ORIGINAL, CORRECTED, ISSUES);
+    const join = (skip: ChangePart["kind"]) =>
+      parts
+        .filter((p) => p.kind !== skip)
+        .map((p) => p.text)
+        .join("");
+    expect(join("added")).toBe(ORIGINAL);
+    expect(join("removed")).toBe(CORRECTED);
   });
 
-  it("strikes what the correction removed, inside and outside excerpts", () => {
-    expect(render(segments)).toBe(
-      "<#1 [-In-] the other hand> the costs <#0 [-raised-]>. Moreover we will " +
-        "<#2 discuss [-about-]>[- -]it. She is engineer.",
+  it("gives each change to the issue it fixes, numbered after its last part", () => {
+    expect(showChanges(changeParts(ORIGINAL, CORRECTED, ISSUES))).toBe(
+      "[-In-]@0{+On+}@0 the other hand{+,+}@0#1 the costs [-raised-]@1{+rose+}@1#2." +
+        " Moreover{+,+} we will discuss [-about -]@2#3it. She is {+an +}@3#4engineer.",
     );
   });
 
-  it("only marks the excerpts, as resolveHighlights does", () => {
-    expect(segments.filter((s) => s.issueIndex !== null).map((s) => s.issueIndex)).toEqual([
-      1, 0, 2,
+  it("leaves a change that fixes no issue unowned and unnumbered", () => {
+    const moreover = changeParts(ORIGINAL, CORRECTED, ISSUES).find(
+      (p) => p.kind === "added" && p.text === "," && p.issueIndex === null,
+    );
+    expect(moreover).toMatchObject({ issueIndex: null, markerAfter: false });
+  });
+
+  it("numbers nothing for an issue whose excerpt can't be found", () => {
+    const parts = changeParts(ORIGINAL, CORRECTED, [issue("not there")]);
+    expect(parts.some((p) => p.issueIndex !== null)).toBe(false);
+  });
+
+  it("gives a change touched by two issues to the first", () => {
+    const parts = changeParts(ORIGINAL, CORRECTED, [
+      issue("costs raised"),
+      issue("raised"),
     ]);
+    const owners = parts.filter((p) => p.kind !== "same").map((p) => p.issueIndex);
+    expect(owners).not.toContain(1);
+    expect(parts.find((p) => p.text === "rose")).toMatchObject({
+      issueIndex: 0,
+      markerAfter: true,
+    });
   });
 
-  it("strikes nothing when there is no corrected text", () => {
-    expect(render(originalSegments(ORIGINAL, "", [issue("raised")]))).toBe(
-      "In the other hand the costs <#0 raised>. Moreover we will discuss about it. She is engineer.",
-    );
+  it("returns the text unchanged when there is nothing to compare", () => {
+    expect(changeParts(ORIGINAL, "", ISSUES)).toEqual([
+      { text: ORIGINAL, kind: "same", issueIndex: null, markerAfter: false },
+    ]);
+    expect(changeParts("", CORRECTED, ISSUES)).toEqual([
+      { text: CORRECTED, kind: "same", issueIndex: null, markerAfter: false },
+    ]);
+    expect(changeParts("", "", ISSUES)).toEqual([]);
   });
 
-  it("strikes nothing when the correction changed nothing", () => {
-    expect(render(originalSegments(ORIGINAL, ORIGINAL, []))).toBe(ORIGINAL);
-  });
-
-  it("returns nothing for empty text", () => {
-    expect(originalSegments("", CORRECTED, [])).toEqual([]);
+  it("shows identical texts as one unchanged stretch", () => {
+    expect(changeParts(ORIGINAL, ORIGINAL, ISSUES)).toEqual([
+      { text: ORIGINAL, kind: "same", issueIndex: null, markerAfter: false },
+    ]);
   });
 });

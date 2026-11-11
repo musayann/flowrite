@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { resolveHighlights, resolveRanges, toSegments } from "@/lib/highlight";
+import {
+  orderIssues,
+  resolveHighlights,
+  resolveRanges,
+  toSegments,
+} from "@/lib/highlight";
 import { makeIssue } from "../fixtures";
 
 const TEXT = "The cat sat";
@@ -158,5 +163,42 @@ describe("toSegments", () => {
       { text: "cat", issueIndex: 2 },
       { text: " sat.", issueIndex: null },
     ]);
+  });
+});
+
+describe("orderIssues", () => {
+  const at = (excerpt: string) => makeIssue({ excerpt, start: -1, end: -1 });
+
+  it("puts issues in the order their excerpts appear", () => {
+    const ordered = orderIssues(TEXT, [at("sat"), at("The"), at("cat")]);
+    expect(ordered.map((i) => i.excerpt)).toEqual(["The", "cat", "sat"]);
+  });
+
+  it("puts issues that can't be located last, in the order they came", () => {
+    const ordered = orderIssues(TEXT, [
+      at("missing"),
+      at("sat"),
+      at("also missing"),
+      at("The"),
+    ]);
+    expect(ordered.map((i) => i.excerpt)).toEqual([
+      "The",
+      "sat",
+      "missing",
+      "also missing",
+    ]);
+  });
+
+  it("treats an issue that overlaps an earlier one as unlocated", () => {
+    const ordered = orderIssues(TEXT, [at("cat sat"), at("The cat")]);
+    expect(ordered.map((i) => i.excerpt)).toEqual(["cat sat", "The cat"]);
+  });
+
+  it("returns the same issue objects, all of them", () => {
+    const issues = [at("sat"), at("The")];
+    const ordered = orderIssues(TEXT, issues);
+    expect(ordered).toHaveLength(2);
+    expect(ordered).toContain(issues[0]);
+    expect(ordered).toContain(issues[1]);
   });
 });

@@ -5,16 +5,23 @@ import { SYSTEM_PROMPT } from "@/lib/prompt";
 
 describe("CATEGORY_STYLES", () => {
   it("styles exactly the categories the schema allows", () => {
-    // A category without a style is a runtime TypeError in HighlightedText
-    // and IssueCard, which read CATEGORY_STYLES[issue.category] unguarded.
+    // A category without a style is a runtime TypeError wherever an issue is
+    // drawn, since CATEGORY_STYLES[issue.category] is read unguarded.
     expect(Object.keys(CATEGORY_STYLES).sort()).toEqual([...CATEGORIES].sort());
   });
 
-  it.each(CATEGORIES)("gives %s a non-empty label, mark and badge", (category) => {
-    const style = CATEGORY_STYLES[category];
-    expect(style.label).toBeTruthy();
-    expect(style.mark).toBeTruthy();
-    expect(style.badge).toBeTruthy();
+  it.each(CATEGORIES)("gives %s a label and every class it needs", (category) => {
+    const { label, ...classes } = CATEGORY_STYLES[category];
+    expect(label).toBeTruthy();
+    expect(Object.keys(classes).sort()).toEqual(
+      ["active", "dot", "number", "text", "tint", "underline"],
+    );
+    for (const value of Object.values(classes)) expect(value).toBeTruthy();
+  });
+
+  it("gives every category its own colour", () => {
+    const dots = CATEGORIES.map((c) => CATEGORY_STYLES[c].dot);
+    expect(new Set(dots).size).toBe(CATEGORIES.length);
   });
 });
 

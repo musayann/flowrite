@@ -124,3 +124,79 @@ describe("clearHistory", () => {
     expect(loadHistory()).toEqual([]);
   });
 });
+
+describe("the history store", () => {
+  /** A fresh copy of the module, so its cached snapshot starts empty. */
+  async function freshStore() {
+    vi.resetModules();
+    return import("@/lib/history");
+  }
+
+  it("reads storage once, then hands back the same array", async () => {
+    const store = await freshStore();
+    store.addHistory("stored", makeResult());
+    const fresh = await freshStore();
+    const first = fresh.getHistorySnapshot();
+    expect(first.map((e) => e.input)).toEqual(["stored"]);
+    expect(fresh.getHistorySnapshot()).toBe(first);
+  });
+
+  it("gives the server an empty history", async () => {
+    const store = await freshStore();
+    store.addHistory("stored", makeResult());
+    expect(store.getServerHistorySnapshot()).toEqual([]);
+  });
+
+  it("tells subscribers about every write, with a new snapshot", async () => {
+    const store = await freshStore();
+    const listener = vi.fn();
+    const unsubscribe = store.subscribeHistory(listener);
+
+    const before = store.getHistorySnapshot();
+    const [entry] = store.addHistory("a", makeResult());
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(store.getHistorySnapshot()).not.toBe(before);
+    expect(store.getHistorySnapshot().map((e) => e.input)).toEqual(["a"]);
+
+    store.removeHistory(entry.id);
+    store.clearHistory();
+    expect(listener).toHaveBeenCalledTimes(3);
+
+    unsubscribe();
+    store.addHistory("b", makeResult());
+    expect(listener).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps the new list in memory when storage is full", async () => {
+    const store = await freshStore();
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("full", "QuotaExceededError");
+    });
+    store.addHistory("unsaved", makeResult());
+    expect(store.getHistorySnapshot().map((e) => e.input)).toEqual(["unsaved"]);
+  });
+
+  it("picks up writes from other tabs", async () => {
+    const store = await freshStore();
+    const listener = vi.fn();
+    const unsubscribe = store.subscribeHistory(listener);
+    expect(store.getHistorySnapshot()).toEqual([]);
+
+    // Another tab wrote to storage; this tab only hears a storage event.
+    window.localStorage.setItem(
+      KEY,
+      JSON.stringify([
+        { id: "x", input: "from elsewhere", result: makeResult(), createdAt: 1 },
+      ]),
+    );
+    window.dispatchEvent(new StorageEvent("storage", { key: "other" }));
+    expect(listener).not.toHaveBeenCalled();
+
+    window.dispatchEvent(new StorageEvent("storage", { key: KEY }));
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(store.getHistorySnapshot().map((e) => e.input)).toEqual([
+      "from elsewhere",
+    ]);
+    unsubscribe();
+  });
+});

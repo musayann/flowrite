@@ -1,64 +1,99 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import Home from "@/app/page";
+import {
+  HistoryButton,
+  HistoryDrawerProvider,
+} from "@/components/history-drawer-context";
+import type { HistoryEntry } from "@/lib/history";
+import type { AnalysisResult } from "@/lib/schema";
 import { makeIssue, makeResult } from "../fixtures";
 
-const loadHistory = vi.fn();
-const addHistory = vi.fn();
-const removeHistory = vi.fn();
+// An in-memory stand-in for the history store, so tests control what's saved.
+let entries: HistoryEntry[] = [];
+const listeners = new Set<() => void>();
+function save(next: HistoryEntry[]) {
+  entries = next;
+  listeners.forEach((listener) => listener());
+  return next;
+}
+const addHistory = vi.fn((input: string, result: AnalysisResult) =>
+  save([
+    { id: `saved-${input}`, input, result, createdAt: Date.now() },
+    ...entries.filter((e) => e.input !== input),
+  ]),
+);
+const removeHistory = vi.fn((id: string) => save(entries.filter((e) => e.id !== id)));
+const clearHistory = vi.fn(() => save([]));
 
 vi.mock("@/lib/history", () => ({
-  loadHistory: () => loadHistory(),
-  addHistory: (input: string, result: unknown) => addHistory(input, result),
+  addHistory: (input: string, result: AnalysisResult) => addHistory(input, result),
   removeHistory: (id: string) => removeHistory(id),
+  clearHistory: () => clearHistory(),
+  subscribeHistory: (listener: () => void) => {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  },
+  getHistorySnapshot: () => entries,
+  getServerHistorySnapshot: () => [],
 }));
 
 const RESULT = makeResult({
-  issues: [makeIssue({ excerpt: "cat", start: 4, end: 7 })],
-  correctedVersion: "The cat sat.",
+  issues: [
+    makeIssue({ excerpt: "sat", start: -1, end: -1, category: "word-choice" }),
+    makeIssue({ excerpt: "cat", start: -1, end: -1, category: "article" }),
+  ],
+  correctedVersion: "The fat cat sits.",
   naturalVersion: "A cat was sitting.",
   naturalNote: "Smoother phrasing.",
+});
+
+const stored = (id: string, input: string, result = RESULT): HistoryEntry => ({
+  id,
+  input,
+  result,
+  createdAt: Date.now(),
 });
 
 const fetchMock = vi.fn();
 
 function setup() {
   render(
-    <TooltipProvider>
+    <HistoryDrawerProvider>
+      <HistoryButton />
       <Home />
-    </TooltipProvider>,
+    </HistoryDrawerProvider>,
   );
-  return {
-    user: userEvent.setup(),
-    textarea: screen.getByRole("textbox"),
-    submit: screen.getByRole("button", { name: /analyse/i }),
-  };
+  return { user: userEvent.setup() };
 }
 
-/** The card whose title is `title` (or the given title element). */
-function cardTitled(title: string | HTMLElement) {
-  const el = typeof title === "string" ? screen.getByText(title) : title;
-  return el.closest("[data-slot=card]") as HTMLElement;
-}
+const textbox = () => screen.getByRole("textbox", { name: "Your text" });
+const submit = () => screen.getByRole("button", { name: /^Analys/ });
+const heading = () => screen.getByRole("heading", { level: 1 });
 
 /** Resolve the next fetch with a given status and JSON body. */
 function respond(body: unknown, { ok = true, status = 200 } = {}) {
   fetchMock.mockResolvedValue({ ok, status, json: async () => body });
 }
 
-async function analyse(text = "The cat sat") {
-  const { user, textarea, submit } = setup();
-  await user.type(textarea, text);
-  await user.click(submit);
-  return { user, textarea, submit };
+async function analyse(text = "The cat sat.") {
+  const { user } = setup();
+  await user.type(textbox(), text);
+  await user.click(submit());
+  return { user };
+}
+
+/** Analyse, and wait for the review screen. */
+async function review(text = "The cat sat.") {
+  const view = await analyse(text);
+  await screen.findByRole("tablist");
+  return view;
 }
 
 beforeEach(() => {
-  loadHistory.mockReturnValue([]);
-  addHistory.mockReturnValue([]);
-  removeHistory.mockReturnValue([]);
+  entries = [];
+  listeners.clear();
   vi.stubGlobal("fetch", fetchMock);
   respond({ result: RESULT });
 });
@@ -68,36 +103,26 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("initial render", () => {
-  it("shows the page heading and an empty form", () => {
-    const { textarea, submit } = setup();
-    expect(
-      screen.getByRole("heading", { name: /sharpen your sentences/i }),
-    ).toBeInTheDocument();
-    expect(textarea).toHaveValue("");
-    expect(submit).toBeDisabled();
+describe("compose", () => {
+  it("starts on the form, empty", () => {
+    setup();
+    expect(heading()).toHaveTextContent("Sharpen your sentences");
+    expect(textbox()).toHaveValue("");
+    expect(submit()).toBeDisabled();
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   });
 
-  it("loads history from storage after mount", async () => {
-    loadHistory.mockReturnValue([
-      { id: "a", input: "stored text", result: makeResult(), createdAt: Date.now() },
-    ]);
+  it("lists recent texts from history", () => {
+    entries = [stored("a", "stored text")];
     setup();
-    expect(await screen.findByText("stored text")).toBeInTheDocument();
-  });
-
-  it("shows no results before anything is analysed", () => {
-    setup();
-    expect(screen.queryByText("Corrected")).not.toBeInTheDocument();
-    expect(screen.queryByText("More natural")).not.toBeInTheDocument();
+    const recent = screen.getByRole("region", { name: "Recent" });
+    expect(recent).toHaveTextContent("stored text");
   });
 });
 
 describe("analysing", () => {
   it("posts the trimmed text to the API", async () => {
-    const { user, textarea, submit } = setup();
-    await user.type(textarea, "  spaced  ");
-    await user.click(submit);
+    await analyse("  spaced  ");
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(fetchMock).toHaveBeenCalledWith("/api/analyze", {
       method: "POST",
@@ -106,64 +131,86 @@ describe("analysing", () => {
     });
   });
 
-  it("renders the issues and the rewrites", async () => {
-    await analyse();
-    expect(await screen.findByText("More natural")).toBeInTheDocument();
-    expect(cardTitled("Corrected")).toHaveTextContent("The cat sat.");
-    expect(screen.getByText("A cat was sitting.")).toBeInTheDocument();
-    expect(screen.getByText(/Issues/)).toHaveTextContent("(1)");
-  });
-
-  it("puts the corrected version right under your text", async () => {
-    await analyse();
-    const yours = cardTitled(await screen.findByText("Your text"));
-    expect(yours.nextElementSibling).toBe(cardTitled("Corrected"));
-  });
-
-  it("shows each fix in its card and highlights it in the corrected version", async () => {
-    respond({
-      result: makeResult({
-        issues: [makeIssue({ excerpt: "cat sat", start: -1, end: -1 })],
-        correctedVersion: "The cat sits.",
+  it("says it is analysing while the request runs", async () => {
+    let finish!: () => void;
+    fetchMock.mockReturnValue(
+      new Promise((resolve) => {
+        finish = () => resolve({ ok: true, status: 200, json: async () => ({ result: RESULT }) });
       }),
-    });
-    await analyse("The cat sat.");
-    const card = await screen.findByText("Before");
-    const issueCard = card.closest("#issue-0") as HTMLElement;
-    expect(issueCard.querySelector("del")).toHaveTextContent("sat");
-    expect(issueCard.querySelector("ins")).toHaveTextContent("sits");
-
-    const yours = cardTitled("Your text");
-    expect(yours).toHaveTextContent("The cat sat.");
-    expect(yours.querySelector("mark")).toHaveTextContent("cat sat");
-    const dels = yours.querySelectorAll("del");
-    expect(dels).toHaveLength(1);
-    expect(dels[0]).toHaveTextContent("sat");
-
-    const corrected = cardTitled("Corrected");
-    expect(corrected).toHaveTextContent("The cat sits.");
-    const ins = corrected.querySelectorAll("ins");
-    expect(ins).toHaveLength(1);
-    expect(ins[0]).toHaveTextContent("sits");
-    expect(corrected.querySelector("mark")).toBeNull();
+    );
+    await analyse();
+    expect(submit()).toHaveTextContent("Analysing…");
+    expect(submit()).toBeDisabled();
+    finish();
+    await screen.findByRole("tablist");
   });
 
-  it("saves the analysis to history", async () => {
-    await analyse();
-    await waitFor(() =>
-      expect(addHistory).toHaveBeenCalledWith("The cat sat", RESULT),
-    );
+  it("moves to the review, with the text shown once", async () => {
+    await review();
+    expect(heading()).toHaveTextContent("2 things a careful reader would stumble over");
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("The cat1 sat2.");
+  });
+
+  it("numbers issues in the order they appear in the text", async () => {
+    await review();
+    const margin = screen.getByRole("complementary", { name: "Issues" });
+    const [first, second] = within(margin).getAllByRole("article");
+    expect(first).toHaveTextContent("Article");
+    expect(second).toHaveTextContent("Word choice");
+  });
+
+  it("opens a note from its number in the text, with its fix", async () => {
+    const { user } = await review();
+    await user.click(screen.getByRole("button", { name: "Issue 2, word choice" }));
+    const note = document.getElementById("issue-1")!;
+    expect(within(note).getByRole("button", { expanded: true })).toBeInTheDocument();
+    expect(note.querySelector("del")).toHaveTextContent("sat");
+    expect(note.querySelector("ins")).toHaveTextContent("sits");
+  });
+
+  it("shows every change in the corrected reading", async () => {
+    const { user } = await review();
+    await user.click(screen.getByRole("tab", { name: "Corrected" }));
+    const panel = screen.getByRole("tabpanel");
+    // "fat " is inserted right at the edge of the "cat" excerpt, so it is
+    // issue 1's change and its number follows it.
+    expect(panel.querySelector("p")).toHaveTextContent("The fat1 cat satsits2.");
+  });
+
+  it("saves the analysis to history and marks it current", async () => {
+    const { user } = await review();
+    expect(addHistory).toHaveBeenCalledWith("The cat sat.", RESULT);
+    await user.click(screen.getByRole("button", { name: "History" }));
+    expect(
+      within(screen.getByRole("dialog")).getByRole("button", { name: /The cat sat\./ }),
+    ).toHaveAttribute("aria-current", "true");
   });
 
   it("reports when the text has no issues", async () => {
     respond({ result: makeResult({ issues: [] }) });
-    await analyse();
-    expect(await screen.findByText("No issues found")).toBeInTheDocument();
+    await review();
+    expect(screen.getByText("No issues found")).toBeInTheDocument();
+  });
+});
+
+describe("leaving the review", () => {
+  it("goes back to the form with the text, to edit it", async () => {
+    const { user } = await review();
+    await user.click(screen.getByRole("button", { name: "Edit" }));
+    expect(textbox()).toHaveValue("The cat sat.");
   });
 
-  it("clears the loading state when the request finishes", async () => {
-    const { submit } = await analyse();
-    await waitFor(() => expect(submit).toHaveTextContent("Analyse"));
+  it("starts over with an empty form", async () => {
+    const { user } = await review();
+    await user.click(screen.getByRole("button", { name: "New text" }));
+    expect(textbox()).toHaveValue("");
+  });
+
+  it("copies the corrected text", async () => {
+    const { user } = await review();
+    await user.click(screen.getByRole("button", { name: "Copy corrected" }));
+    expect(await navigator.clipboard.readText()).toBe("The fat cat sits.");
   });
 });
 
@@ -174,9 +221,9 @@ describe("error handling", () => {
       status: 400,
     });
     await analyse();
-    expect(
-      await screen.findByText("Text is too long (max 1500 characters)."),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Text is too long (max 1500 characters).",
+    );
   });
 
   it("falls back to a generic message when the API sends no error text", async () => {
@@ -185,12 +232,14 @@ describe("error handling", () => {
     expect(await screen.findByText("Something went wrong.")).toBeInTheDocument();
   });
 
-  it("reports a network failure", async () => {
+  it("reports a network failure and keeps the text", async () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
     await analyse();
     expect(
       await screen.findByText("Network error. Please try again."),
     ).toBeInTheDocument();
+    expect(textbox()).toHaveValue("The cat sat.");
+    expect(submit()).toHaveTextContent("Analyse");
   });
 
   it("does not save a failed analysis to history", async () => {
@@ -200,51 +249,60 @@ describe("error handling", () => {
     expect(addHistory).not.toHaveBeenCalled();
   });
 
-  it("clears the loading state after a failure", async () => {
+  it("clears a previous error on the next run", async () => {
     fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
-    const { submit } = await analyse();
-    await waitFor(() => expect(submit).toHaveTextContent("Analyse"));
-  });
-
-  it("clears a previous error on the next successful run", async () => {
-    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
-    const { user, submit } = await analyse();
+    const { user } = await analyse();
     await screen.findByText("Network error. Please try again.");
 
     respond({ result: RESULT });
-    await user.click(submit);
-    await waitFor(() =>
-      expect(
-        screen.queryByText("Network error. Please try again."),
-      ).not.toBeInTheDocument(),
-    );
+    await user.click(submit());
+    await screen.findByRole("tablist");
+    await user.click(screen.getByRole("button", { name: "New text" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 
-describe("history interaction", () => {
-  it("restores a stored analysis without calling the API", async () => {
-    loadHistory.mockReturnValue([
-      { id: "a", input: "stored text", result: RESULT, createdAt: Date.now() },
-    ]);
+describe("history", () => {
+  it("opens a stored analysis from the drawer without calling the API", async () => {
+    entries = [stored("a", "The cat sat.")];
     const { user } = setup();
-    await user.click(await screen.findByText("stored text"));
+    await user.click(screen.getByRole("button", { name: "History" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", { name: /The cat sat\./ }),
+    );
 
-    expect(screen.getByRole("textbox")).toHaveValue("stored text");
-    expect(cardTitled("Corrected")).toHaveTextContent("The cat sat.");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByRole("tabpanel")).toHaveTextContent("The cat1 sat2.");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("removes an entry from the list", async () => {
-    loadHistory.mockReturnValue([
-      { id: "doomed", input: "stored text", result: RESULT, createdAt: Date.now() },
-    ]);
+  it("opens a recent text from the form", async () => {
+    entries = [stored("a", "The cat sat.")];
     const { user } = setup();
-    await user.click(
-      await screen.findByRole("button", { name: "Remove from history" }),
-    );
+    const recent = screen.getByRole("region", { name: "Recent" });
+    await user.click(within(recent).getByRole("button", { name: /The cat sat\./ }));
+    expect(screen.getByRole("tablist")).toBeInTheDocument();
+  });
+
+  it("opens the whole history from See all", async () => {
+    entries = [stored("a", "stored text")];
+    const { user } = setup();
+    await user.click(screen.getByRole("button", { name: "See all" }));
+    expect(screen.getByRole("dialog", { name: "History" })).toBeInTheDocument();
+  });
+
+  it("removes one entry, or all of them", async () => {
+    entries = [stored("doomed", "first text"), stored("also", "second text")];
+    const { user } = setup();
+    await user.click(screen.getByRole("button", { name: "History" }));
+    const dialog = screen.getByRole("dialog");
+
+    await user.click(within(dialog).getAllByRole("button", { name: "Remove from history" })[0]);
     expect(removeHistory).toHaveBeenCalledWith("doomed");
-    await waitFor(() =>
-      expect(screen.queryByText("stored text")).not.toBeInTheDocument(),
-    );
+    expect(dialog).not.toHaveTextContent("first text");
+
+    await user.click(within(dialog).getByRole("button", { name: "Clear history" }));
+    expect(clearHistory).toHaveBeenCalled();
+    expect(dialog).toHaveTextContent("Your recent analyses will appear here.");
   });
 });

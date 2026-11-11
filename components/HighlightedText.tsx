@@ -1,99 +1,73 @@
 "use client";
 
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import type { Issue } from "@/lib/schema";
-import { originalSegments, type OriginalPart } from "@/lib/fixes";
+import { resolveHighlights } from "@/lib/highlight";
 import { CATEGORY_STYLES } from "@/lib/categories";
 import { cn } from "@/lib/utils";
-import { REMOVED_CLASS, wrapCore } from "@/components/diff-marks";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import IssueMarker from "@/components/IssueMarker";
 
 type Props = {
   original: string;
+  /** In reading order: issue `i` is numbered `i + 1`. */
   issues: Issue[];
-  activeIndex: number | null;
-  onActivate: (index: number | null) => void;
-  /**
-   * The corrected version of `original`. When given, the words the
-   * correction removed are struck through, as on an issue card's Before line.
-   */
-  corrected?: string;
+  /** The issue whose note is open; its excerpt is tinted. */
+  openIndex: number | null;
+  onPick: (index: number) => void;
+  /** Which issues to mark; the rest read as plain text. Defaults to all. */
+  shown?: (index: number) => boolean;
   className?: string;
 };
 
-/** Kept text as-is; removed text struck through, without its spaces. */
-function renderParts(parts: OriginalPart[], inMark: boolean) {
-  return parts.map((part, i) => (
-    <span key={i}>
-      {part.removed
-        ? wrapCore(part.text, (core) => (
-            <del className={cn(REMOVED_CLASS, inMark && "text-inherit")}>
-              {core}
-            </del>
-          ))
-        : part.text}
-    </span>
-  ));
-}
+const showAll = () => true;
 
+/**
+ * The user's text with each issue's excerpt underlined in its category colour
+ * and followed by its number. Clicking either opens the issue's note.
+ */
 export default function HighlightedText({
   original,
   issues,
-  activeIndex,
-  onActivate,
-  corrected = "",
+  openIndex,
+  onPick,
+  shown = showAll,
   className,
 }: Props) {
   const segments = useMemo(
-    () => originalSegments(original, corrected, issues),
-    [original, corrected, issues],
+    () => resolveHighlights(original, issues),
+    [original, issues],
   );
 
   return (
-    <p
-      className={cn(
-        "text-lg leading-loose break-words whitespace-pre-wrap",
-        className,
-      )}
-    >
+    <p className={cn("break-words whitespace-pre-wrap", className)}>
       {segments.map((seg, i) => {
-        if (seg.issueIndex === null) {
-          return <span key={i}>{renderParts(seg.parts, false)}</span>;
-        }
         const idx = seg.issueIndex;
+        if (idx === null || !shown(idx)) {
+          return <span key={i}>{seg.text}</span>;
+        }
         const issue = issues[idx];
         const style = CATEGORY_STYLES[issue.category];
+        const open = openIndex === idx;
         return (
-          <Tooltip key={i}>
-            <TooltipTrigger asChild>
-              <mark
-                onMouseEnter={() => onActivate(idx)}
-                onMouseLeave={() => onActivate(null)}
-                onFocus={() => onActivate(idx)}
-                onBlur={() => onActivate(null)}
-                onClick={() => {
-                  document
-                    .getElementById(`issue-${idx}`)
-                    ?.scrollIntoView({ behavior: "smooth", block: "center" });
-                }}
-                className={cn(
-                  "cursor-pointer rounded-sm",
-                  style.mark,
-                  activeIndex === idx && "ring-2 ring-ring",
-                )}
-              >
-                {renderParts(seg.parts, true)}
-              </mark>
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs">
-              <span className="font-medium">{style.label}:</span>{" "}
-              {issue.explanation}
-            </TooltipContent>
-          </Tooltip>
+          <Fragment key={i}>
+            <mark
+              data-issue={idx}
+              onClick={() => onPick(idx)}
+              className={cn(
+                "cursor-pointer rounded-[3px] px-px py-0.5 text-inherit underline decoration-2 underline-offset-[6px] transition-colors",
+                style.underline,
+                open ? style.tint : "bg-transparent",
+              )}
+            >
+              {seg.text}
+            </mark>
+            <IssueMarker
+              category={issue.category}
+              number={idx + 1}
+              open={open}
+              onClick={() => onPick(idx)}
+            />
+          </Fragment>
         );
       })}
     </p>

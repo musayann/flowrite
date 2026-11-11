@@ -1,67 +1,97 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import type { Issue } from "@/lib/schema";
-import type { Fix } from "@/lib/fixes";
+import { fixSummary, type Fix } from "@/lib/fixes";
 import { CATEGORY_STYLES } from "@/lib/categories";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import FixDiff from "@/components/FixDiff";
+import { cn } from "@/lib/utils";
+import { INSERTED_CLASS } from "@/components/diff-marks";
+import IssueDetails from "@/components/IssueDetails";
 
 type Props = {
   issue: Issue;
+  /** Position in the reading-order list; the note shows `index + 1`. */
   index: number;
-  active: boolean;
-  onActivate: (index: number | null) => void;
+  open: boolean;
+  onToggle: () => void;
   /** What the minimal correction changed for this issue, if anything. */
   fix?: Fix | null;
 };
 
-export default function IssueCard({
-  issue,
-  index,
-  active,
-  onActivate,
-  fix,
-}: Props) {
+/** The fix in one line, `before → after`, or the excerpt when nothing changed. */
+function Summary({ issue, fix }: { issue: Issue; fix?: Fix | null }) {
+  if (!fix) {
+    return <span className="text-muted-foreground">“{issue.excerpt}”</span>;
+  }
+  const { before, after } = fixSummary(fix);
+  return (
+    <>
+      {before && <del className="text-muted-foreground">{before}</del>}
+      {before && after && " → "}
+      {after && <ins className={cn(INSERTED_CLASS, "px-0.5")}>{after}</ins>}
+    </>
+  );
+}
+
+/**
+ * One margin note: a numbered header that already shows the fix, and, when
+ * open, the fix in full, why it was needed, and the rule to remember.
+ */
+export default function IssueCard({ issue, index, open, onToggle, fix }: Props) {
   const style = CATEGORY_STYLES[issue.category];
+  const bodyId = `issue-${index}-body`;
 
   return (
-    <Card
+    <article
       id={`issue-${index}`}
-      onMouseEnter={() => onActivate(index)}
-      onMouseLeave={() => onActivate(null)}
-      className={`scroll-mt-20 gap-3 py-4 transition ${active ? "ring-2 ring-ring" : ""
-        }`}
+      className={cn(
+        "scroll-mt-24 rounded-xl border bg-card text-card-foreground shadow-xs transition-shadow",
+        open && cn(style.active, "shadow-md"),
+      )}
     >
-      <CardHeader className="px-4">
-        <div className="flex flex-col md:flex-row md:items-center gap-2">
-          <div>
+      <h3>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={bodyId}
+          onClick={onToggle}
+          className="flex min-h-14 w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <span
+            className={cn(
+              "flex size-6 flex-none items-center justify-center rounded-full text-xs font-semibold",
+              style.number,
+            )}
+          >
+            <span className="sr-only">Issue</span> {index + 1}
+          </span>{" "}
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${style.badge}`}
+              className={cn(
+                "text-xs font-semibold tracking-[0.04em] uppercase",
+                style.text,
+              )}
             >
               {style.label}
+            </span>{" "}
+            <span className="line-clamp-2 text-sm font-normal">
+              <Summary issue={issue} fix={fix} />
             </span>
-          </div>
-          <div className="font-mono text-sm text-muted-foreground">
-            “{issue.excerpt}”
-          </div>
+          </span>
+          <ChevronDown
+            aria-hidden="true"
+            className={cn(
+              "size-4 flex-none text-muted-foreground transition-transform",
+              open && "rotate-180",
+            )}
+          />
+        </button>
+      </h3>
+      {open && (
+        <div id={bodyId} className="flex flex-col gap-3.5 px-4 pt-0.5 pb-4">
+          <IssueDetails issue={issue} fix={fix} />
         </div>
-      </CardHeader>
-      <CardContent className="px-4">
-        <p className="text-sm leading-relaxed">{issue.explanation}</p>
-        <div className="mt-3 border-l-2 pl-3">
-          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-            Rule
-          </p>
-          <p className="mt-1 text-sm leading-relaxed text-foreground">
-            {issue.rule}
-          </p>
-        </div>
-        {fix && (
-          <div className="mt-3 border-t pt-3">
-            <FixDiff fix={fix} category={issue.category} />
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </article>
   );
 }

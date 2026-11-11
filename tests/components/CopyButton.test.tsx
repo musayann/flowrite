@@ -68,3 +68,17 @@ describe("copying", () => {
     expect(button).not.toHaveTextContent("Copied");
   });
 });
+
+describe("labelling", () => {
+  it("can say what it copies, and still confirms the copy", async () => {
+    render(<CopyButton text={TEXT} label="Copy corrected" variant="default" />);
+    const button = screen.getByRole("button", { name: "Copy corrected" });
+    expect(button).toHaveAttribute("data-variant", "default");
+    await click(button);
+    expect(button).toHaveTextContent("Copied");
+  });
+
+  it("is a ghost button by default", () => {
+    expect(setup()).toHaveAttribute("data-variant", "ghost");
+  });
+});

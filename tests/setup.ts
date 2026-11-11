@@ -8,7 +8,7 @@ afterEach(() => {
 
 // --- jsdom gaps the components under test actually hit ---------------------
 
-// radix Tooltip (HighlightedText) and ScrollArea (HistoryList).
+// radix primitives measure themselves with ResizeObserver.
 if (!("ResizeObserver" in globalThis)) {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -17,10 +17,10 @@ if (!("ResizeObserver" in globalThis)) {
   };
 }
 
-// HighlightedText scrolls to the matching IssueCard on click.
+// Picking an issue in the text scrolls its note into view.
 Element.prototype.scrollIntoView ??= function scrollIntoView() {};
 
-// HistoryList scrolls the page to the top when an entry is selected.
+// The page scrolls to the top when it switches between compose and review.
 window.scrollTo = vi.fn();
 
 // next-themes (ModeToggle) probes the colour-scheme preference.

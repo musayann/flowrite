@@ -16,7 +16,7 @@ export default defineConfig({
     // next-auth's ESM entry imports "next/server" bare; let Vite resolve it
     // through the package exports map instead of Node's raw resolver.
     server: { deps: { inline: ["next-auth", "@auth/core"] } },
-    // `HistoryList` formats dates with Intl, so pin the zone for determinism.
+    // Dates are formatted with Intl (`lib/format`), so pin the zone for determinism.
     env: { TZ: "UTC" },
     projects: [
       {
