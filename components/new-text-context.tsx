@@ -9,7 +9,7 @@ import {
   type RefObject,
 } from "react";
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { FlowriteMark } from "@/components/flowrite-mark";
 
 type Handler = () => void;
 
@@ -56,8 +56,8 @@ export function BrandLink() {
       }}
       className="-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
     >
-      <Sparkles aria-hidden="true" className="h-5 w-5 text-primary" />
-      <span className="text-base font-semibold tracking-tight">Flowrite</span>
+      <FlowriteMark className="h-5 w-5 shrink-0 text-primary" />
+      <span className="text-base font-bold tracking-tight">Flowrite</span>
     </Link>
   );
 }

@@ -1,10 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <!-- Flowrite favicon — lucide "Sparkles" mark, white on the app's dark surface (#0a0a0a). -->
+  <!-- Flowrite icon — an F built from the review's diff marks: a solid stem, a struck-through top
+       arm (removed text) and an emerald middle arm (inserted text), on the app's dark surface (#0a0a0a).
+       Same geometry as components/flowrite-mark.tsx. -->
   <rect width="512" height="512" rx="114" fill="#0a0a0a" />
-  <g transform="translate(106 106) scale(12.5)" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" />
-    <path d="M20 2v4" />
-    <path d="M22 4h-4" />
-    <circle cx="4" cy="20" r="2" />
+  <g transform="translate(106 106) scale(12.5)">
+    <rect x="4.5" y="3" width="3.75" height="18" rx="1.6" fill="#fafafa" />
+    <rect x="9.75" y="3" width="10" height="4.75" rx="1.6" fill="#fafafa" fill-opacity="0.28" />
+    <path d="M11 5.375h7.5" stroke="#fafafa" stroke-width="1.5" stroke-linecap="round" />
+    <rect x="9.75" y="10" width="7" height="4.75" rx="1.6" fill="#34d399" />
   </g>
 </svg>
