@@ -4,7 +4,7 @@ import { renderToString } from "react-dom/server";
 import userEvent from "@testing-library/user-event";
 import { usePathname } from "next/navigation";
 import ComposePage from "@/app/page";
-import ReviewPage from "@/app/review/[id]/page";
+import ReviewPage from "@/app/reviews/[id]/page";
 import {
   HistoryButton,
   HistoryDrawerProvider,
@@ -71,7 +71,7 @@ const fetchMock = vi.fn();
 
 /** The app's two pages, picked by the URL as the App Router would. */
 function Routes() {
-  return usePathname().startsWith("/review/") ? <ReviewPage /> : <ComposePage />;
+  return usePathname().startsWith("/reviews/") ? <ReviewPage /> : <ComposePage />;
 }
 
 /** What the root layout puts around the pages. */
@@ -352,7 +352,7 @@ describe("history", () => {
 describe("the URL", () => {
   it("gives the review its own page, and leaves it for the form", async () => {
     const { user } = await review();
-    expect(path()).toBe("/review/saved-1");
+    expect(path()).toBe("/reviews/saved-1");
     await user.click(screen.getByRole("button", { name: "New text" }));
     expect(path()).toBe("/");
   });
@@ -362,24 +362,24 @@ describe("the URL", () => {
     const { user } = setup();
     const recent = screen.getByRole("region", { name: "Recent" });
     await user.click(within(recent).getByRole("button", { name: /The cat sat\./ }));
-    expect(path()).toBe("/review/a");
+    expect(path()).toBe("/reviews/a");
   });
 
   it("moves from one review to another from the drawer", async () => {
     entries = [stored("a", "The cat sat."), stored("b", "A dog ran.", makeResult())];
-    window.history.replaceState(null, "", "/review/a");
+    window.history.replaceState(null, "", "/reviews/a");
     const { user } = setup();
     await user.click(screen.getByRole("button", { name: "History" }));
     await user.click(
       within(screen.getByRole("dialog")).getByRole("button", { name: /A dog ran\./ }),
     );
-    expect(path()).toBe("/review/b");
+    expect(path()).toBe("/reviews/b");
     expect(screen.getByRole("tabpanel")).toHaveTextContent("A dog ran.");
   });
 
   it("comes back to the same text on refresh", () => {
     entries = [stored("a", "The cat sat.")];
-    window.history.replaceState(null, "", "/review/a");
+    window.history.replaceState(null, "", "/reviews/a");
     setup();
     expect(screen.getByRole("tabpanel")).toHaveTextContent("The cat1 sat2.");
     expect(fetchMock).not.toHaveBeenCalled();
@@ -408,7 +408,7 @@ describe("the URL", () => {
   });
 
   it("sends a text history doesn't have to the form", async () => {
-    window.history.replaceState(null, "", "/review/gone");
+    window.history.replaceState(null, "", "/reviews/gone");
     setup();
     expect(await screen.findByRole("textbox", { name: "Your text" })).toBeInTheDocument();
     expect(path()).toBe("/");
@@ -416,7 +416,7 @@ describe("the URL", () => {
 
   it("doesn't flash the form while restoring a text", () => {
     entries = [stored("a", "The cat sat.")];
-    window.history.replaceState(null, "", "/review/a");
+    window.history.replaceState(null, "", "/reviews/a");
     // The server, and hydration, can't see history yet.
     expect(renderToString(app)).not.toContain("Your text");
   });

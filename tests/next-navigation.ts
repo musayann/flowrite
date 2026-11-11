@@ -32,11 +32,11 @@ export function usePathname() {
   return useSyncExternalStore(subscribe, pathname, pathname);
 }
 
-/** The app's one dynamic route is `/review/[id]`. */
+/** The app's one dynamic route is `/reviews/[id]`. */
 export function useParams() {
   const current = usePathname();
   return useMemo((): Record<string, string> => {
-    const match = /^\/review\/([^/]+)$/.exec(current);
+    const match = /^\/reviews\/([^/]+)$/.exec(current);
     return match ? { id: decodeURIComponent(match[1]) } : {};
   }, [current]);
 }

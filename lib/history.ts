@@ -9,7 +9,7 @@ export type HistoryEntry = {
 
 /** Where the review of history entry `id` lives. */
 export function reviewPath(id: string): string {
-  return `/review/${encodeURIComponent(id)}`;
+  return `/reviews/${encodeURIComponent(id)}`;
 }
 
 const KEY = "flowrite:history";

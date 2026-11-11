@@ -16,7 +16,7 @@ import {
 const noSubscribe = () => () => {};
 
 /**
- * The review of one text, named by its history id (`/review/<id>`), so a
+ * The review of one text, named by its history id (`/reviews/<id>`), so a
  * refresh, or Back and Forward, come back to it. The analysis itself is read
  * from history, which lives in this browser only.
  */
