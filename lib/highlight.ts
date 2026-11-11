@@ -6,11 +6,12 @@ export type Segment = {
   issueIndex: number | null;
 };
 
-type Range = { start: number; end: number; issueIndex: number };
+/** A character range `[start, end)` that belongs to one issue. */
+export type Range = { start: number; end: number; issueIndex: number };
 
 /**
  * Resolve issue spans to concrete, non-overlapping character ranges in the
- * original text, then split the text into renderable segments.
+ * original text, sorted by position.
  *
  * LLM-reported offsets are unreliable, so each issue is located by:
  *   1. trusting `start`/`end` only if `original.slice(start, end) === excerpt`;
@@ -20,7 +21,7 @@ type Range = { start: number; end: number; issueIndex: number };
  *
  * Overlapping resolved ranges are de-conflicted by keeping the earlier one.
  */
-export function resolveHighlights(original: string, issues: Issue[]): Segment[] {
+export function resolveRanges(original: string, issues: Issue[]): Range[] {
   const claimed: Range[] = [];
 
   const overlaps = (a: number, b: number) =>
@@ -59,22 +60,33 @@ export function resolveHighlights(original: string, issues: Issue[]): Segment[] 
     // 3. If nothing matched, the issue is silently left un-highlighted.
   });
 
-  claimed.sort((a, b) => a.start - b.start);
+  return claimed.sort((a, b) => a.start - b.start);
+}
 
+/**
+ * Split `text` into segments at sorted, non-overlapping `ranges`; joining the
+ * segments always rebuilds `text`.
+ */
+export function toSegments(text: string, ranges: Range[]): Segment[] {
   const segments: Segment[] = [];
   let cursor = 0;
-  for (const r of claimed) {
+  for (const r of ranges) {
     if (r.start > cursor) {
-      segments.push({ text: original.slice(cursor, r.start), issueIndex: null });
+      segments.push({ text: text.slice(cursor, r.start), issueIndex: null });
     }
     segments.push({
-      text: original.slice(r.start, r.end),
+      text: text.slice(r.start, r.end),
       issueIndex: r.issueIndex,
     });
     cursor = r.end;
   }
-  if (cursor < original.length) {
-    segments.push({ text: original.slice(cursor), issueIndex: null });
+  if (cursor < text.length) {
+    segments.push({ text: text.slice(cursor), issueIndex: null });
   }
   return segments;
+}
+
+/** Resolve issue spans in the original and split it into renderable segments. */
+export function resolveHighlights(original: string, issues: Issue[]): Segment[] {
+  return toSegments(original, resolveRanges(original, issues));
 }

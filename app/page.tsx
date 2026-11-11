@@ -1,16 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import AnalyzeForm from "@/components/AnalyzeForm";
 import HighlightedText from "@/components/HighlightedText";
+import CorrectedText from "@/components/CorrectedText";
+import CopyButton from "@/components/CopyButton";
 import IssueCard from "@/components/IssueCard";
 import VersionPanel from "@/components/VersionPanel";
 import HistoryList from "@/components/HistoryList";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { MAX_CHARS } from "@/lib/constants";
 import type { AnalysisResult } from "@/lib/schema";
+import { fixRanges, resolveFixes } from "@/lib/fixes";
 import {
   addHistory,
   loadHistory,
@@ -30,6 +39,14 @@ export default function Home() {
   useEffect(() => {
     setHistory(loadHistory());
   }, []);
+
+  // What the minimal correction changed for each issue, and where it landed.
+  const fixes = useMemo(
+    () =>
+      result ? resolveFixes(analyzed, result.correctedVersion, result.issues) : [],
+    [analyzed, result],
+  );
+  const correctedRanges = useMemo(() => fixRanges(fixes), [fixes]);
 
   async function analyze() {
     const text = input.trim();
@@ -115,7 +132,29 @@ export default function Home() {
                 <CardContent>
                   <HighlightedText
                     original={analyzed}
+                    corrected={result.correctedVersion}
                     issues={result.issues}
+                    activeIndex={activeIndex}
+                    onActivate={setActiveIndex}
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm font-semibold text-muted-foreground">
+                    Corrected
+                  </CardTitle>
+                  <CardAction>
+                    <CopyButton text={result.correctedVersion} />
+                  </CardAction>
+                </CardHeader>
+                <CardContent>
+                  <CorrectedText
+                    original={analyzed}
+                    corrected={result.correctedVersion}
+                    issues={result.issues}
+                    ranges={correctedRanges}
                     activeIndex={activeIndex}
                     onActivate={setActiveIndex}
                   />
@@ -145,22 +184,17 @@ export default function Home() {
                         index={i}
                         active={activeIndex === i}
                         onActivate={setActiveIndex}
+                        fix={fixes[i]}
                       />
                     ))}
                   </ul>
                 )}
               </section>
 
-              <section>
-                <h2 className="mb-3 text-sm font-semibold text-muted-foreground">
-                  Rewrites
-                </h2>
-                <VersionPanel
-                  correctedVersion={result.correctedVersion}
-                  naturalVersion={result.naturalVersion}
-                  naturalNote={result.naturalNote}
-                />
-              </section>
+              <VersionPanel
+                naturalVersion={result.naturalVersion}
+                naturalNote={result.naturalNote}
+              />
             </div>
           )}
         </div>

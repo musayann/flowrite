@@ -8,7 +8,8 @@ An AI writing coach for British English (en-GB). Paste a sentence or short parag
 - **British English throughout** — the interface, the explanations, and both rewrites use en-GB; US spellings in your text are flagged as word-choice issues.
 - **Inline highlights** — issues are marked directly in your text, colour-coded by category, with hover tooltips.
 - **8 issue categories** — coherence, information flow, structure, word choice, connector, article, preposition, and clarity.
-- **Actionable detail per issue** — the exact excerpt, an explanation of what's off, and a reusable rule you can apply elsewhere.
+- **Actionable detail per issue** — the exact excerpt, an explanation of what's off, a reusable rule you can apply elsewhere, and a before/after of just the words its fix changes.
+- **Before and after** — the corrected version sits right under your text. Your text strikes through every word the correction removed and the corrected version highlights every word it added, both styled like the before/after in the issue cards; changes that fix an issue link back to its card.
 - **Two rewrites** — a *corrected* version (minimal, targeted fixes) and a *more natural* version (idiomatic rephrasing). Both are one click to copy.
 - **History sidebar** — your last ~20 analyses, stored locally in your browser.
 - **Light / dark mode.**

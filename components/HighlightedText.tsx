@@ -2,8 +2,10 @@
 
 import { useMemo } from "react";
 import type { Issue } from "@/lib/schema";
-import { resolveHighlights } from "@/lib/highlight";
+import { originalSegments, type OriginalPart } from "@/lib/fixes";
 import { CATEGORY_STYLES } from "@/lib/categories";
+import { cn } from "@/lib/utils";
+import { REMOVED_CLASS, wrapCore } from "@/components/diff-marks";
 import {
   Tooltip,
   TooltipContent,
@@ -15,29 +17,56 @@ type Props = {
   issues: Issue[];
   activeIndex: number | null;
   onActivate: (index: number | null) => void;
+  /**
+   * The corrected version of `original`. When given, the words the
+   * correction removed are struck through, as on an issue card's Before line.
+   */
+  corrected?: string;
+  className?: string;
 };
+
+/** Kept text as-is; removed text struck through, without its spaces. */
+function renderParts(parts: OriginalPart[], inMark: boolean) {
+  return parts.map((part, i) => (
+    <span key={i}>
+      {part.removed
+        ? wrapCore(part.text, (core) => (
+            <del className={cn(REMOVED_CLASS, inMark && "text-inherit")}>
+              {core}
+            </del>
+          ))
+        : part.text}
+    </span>
+  ));
+}
 
 export default function HighlightedText({
   original,
   issues,
   activeIndex,
   onActivate,
+  corrected = "",
+  className,
 }: Props) {
   const segments = useMemo(
-    () => resolveHighlights(original, issues),
-    [original, issues],
+    () => originalSegments(original, corrected, issues),
+    [original, corrected, issues],
   );
 
   return (
-    <p className="text-lg leading-loose break-words whitespace-pre-wrap">
+    <p
+      className={cn(
+        "text-lg leading-loose break-words whitespace-pre-wrap",
+        className,
+      )}
+    >
       {segments.map((seg, i) => {
         if (seg.issueIndex === null) {
-          return <span key={i}>{seg.text}</span>;
+          return <span key={i}>{renderParts(seg.parts, false)}</span>;
         }
         const idx = seg.issueIndex;
         const issue = issues[idx];
         const style = CATEGORY_STYLES[issue.category];
-        const isActive = activeIndex === idx;
         return (
           <Tooltip key={i}>
             <TooltipTrigger asChild>
@@ -51,11 +80,13 @@ export default function HighlightedText({
                     .getElementById(`issue-${idx}`)
                     ?.scrollIntoView({ behavior: "smooth", block: "center" });
                 }}
-                className={`cursor-pointer rounded px-0.5 ${style.mark} ${
-                  isActive ? "ring-2 ring-ring" : ""
-                }`}
+                className={cn(
+                  "cursor-pointer rounded-sm",
+                  style.mark,
+                  activeIndex === idx && "ring-2 ring-ring",
+                )}
               >
-                {seg.text}
+                {renderParts(seg.parts, true)}
               </mark>
             </TooltipTrigger>
             <TooltipContent className="max-w-xs">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveHighlights } from "@/lib/highlight";
+import { resolveHighlights, resolveRanges, toSegments } from "@/lib/highlight";
 import { makeIssue } from "../fixtures";
 
 const TEXT = "The cat sat";
@@ -133,5 +133,30 @@ describe("resolveHighlights", () => {
       ]);
       expect(segments.map((s) => s.text).join("")).toBe(TEXT);
     });
+  });
+});
+
+describe("resolveRanges", () => {
+  it("returns the located ranges sorted by position", () => {
+    const issues = [
+      makeIssue({ excerpt: "sat", start: -1, end: -1 }),
+      makeIssue({ excerpt: "The", start: 0, end: 3 }),
+    ];
+    expect(resolveRanges("The cat sat", issues)).toEqual([
+      { start: 0, end: 3, issueIndex: 1 },
+      { start: 8, end: 11, issueIndex: 0 },
+    ]);
+  });
+});
+
+describe("toSegments", () => {
+  it("splits any text at the given ranges", () => {
+    expect(
+      toSegments("The cat sat.", [{ start: 4, end: 7, issueIndex: 2 }]),
+    ).toEqual([
+      { text: "The ", issueIndex: null },
+      { text: "cat", issueIndex: 2 },
+      { text: " sat.", issueIndex: null },
+    ]);
   });
 });

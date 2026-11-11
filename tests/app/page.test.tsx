@@ -37,6 +37,12 @@ function setup() {
   };
 }
 
+/** The card whose title is `title` (or the given title element). */
+function cardTitled(title: string | HTMLElement) {
+  const el = typeof title === "string" ? screen.getByText(title) : title;
+  return el.closest("[data-slot=card]") as HTMLElement;
+}
+
 /** Resolve the next fetch with a given status and JSON body. */
 function respond(body: unknown, { ok = true, status = 200 } = {}) {
   fetchMock.mockResolvedValue({ ok, status, json: async () => body });
@@ -82,7 +88,8 @@ describe("initial render", () => {
 
   it("shows no results before anything is analysed", () => {
     setup();
-    expect(screen.queryByText("Rewrites")).not.toBeInTheDocument();
+    expect(screen.queryByText("Corrected")).not.toBeInTheDocument();
+    expect(screen.queryByText("More natural")).not.toBeInTheDocument();
   });
 });
 
@@ -101,10 +108,44 @@ describe("analysing", () => {
 
   it("renders the issues and the rewrites", async () => {
     await analyse();
-    expect(await screen.findByText("Rewrites")).toBeInTheDocument();
-    expect(screen.getByText("The cat sat.")).toBeInTheDocument();
+    expect(await screen.findByText("More natural")).toBeInTheDocument();
+    expect(cardTitled("Corrected")).toHaveTextContent("The cat sat.");
     expect(screen.getByText("A cat was sitting.")).toBeInTheDocument();
     expect(screen.getByText(/Issues/)).toHaveTextContent("(1)");
+  });
+
+  it("puts the corrected version right under your text", async () => {
+    await analyse();
+    const yours = cardTitled(await screen.findByText("Your text"));
+    expect(yours.nextElementSibling).toBe(cardTitled("Corrected"));
+  });
+
+  it("shows each fix in its card and highlights it in the corrected version", async () => {
+    respond({
+      result: makeResult({
+        issues: [makeIssue({ excerpt: "cat sat", start: -1, end: -1 })],
+        correctedVersion: "The cat sits.",
+      }),
+    });
+    await analyse("The cat sat.");
+    const card = await screen.findByText("Before");
+    const issueCard = card.closest("#issue-0") as HTMLElement;
+    expect(issueCard.querySelector("del")).toHaveTextContent("sat");
+    expect(issueCard.querySelector("ins")).toHaveTextContent("sits");
+
+    const yours = cardTitled("Your text");
+    expect(yours).toHaveTextContent("The cat sat.");
+    expect(yours.querySelector("mark")).toHaveTextContent("cat sat");
+    const dels = yours.querySelectorAll("del");
+    expect(dels).toHaveLength(1);
+    expect(dels[0]).toHaveTextContent("sat");
+
+    const corrected = cardTitled("Corrected");
+    expect(corrected).toHaveTextContent("The cat sits.");
+    const ins = corrected.querySelectorAll("ins");
+    expect(ins).toHaveLength(1);
+    expect(ins[0]).toHaveTextContent("sits");
+    expect(corrected.querySelector("mark")).toBeNull();
   });
 
   it("saves the analysis to history", async () => {
@@ -189,7 +230,7 @@ describe("history interaction", () => {
     await user.click(await screen.findByText("stored text"));
 
     expect(screen.getByRole("textbox")).toHaveValue("stored text");
-    expect(screen.getByText("The cat sat.")).toBeInTheDocument();
+    expect(cardTitled("Corrected")).toHaveTextContent("The cat sat.");
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

@@ -151,3 +151,64 @@ describe("tooltip", () => {
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Explanation.");
   });
 });
+
+describe("removed words", () => {
+  const ORIGINAL = "The cat sit on the the mat.";
+  const CORRECTED = "The cat sits on the mat.";
+
+  function renderWithCorrection(corrected?: string) {
+    const { container } = render(
+      <TooltipProvider>
+        <HighlightedText
+          original={ORIGINAL}
+          corrected={corrected}
+          issues={[makeIssue({ excerpt: "cat sit", start: -1, end: -1 })]}
+          activeIndex={null}
+          onActivate={vi.fn()}
+        />
+      </TooltipProvider>,
+    );
+    return {
+      container,
+      dels: Array.from(container.querySelectorAll("del")),
+    };
+  }
+
+  it("strikes through what the correction removed, without its spaces", () => {
+    const { dels, container } = renderWithCorrection(CORRECTED);
+    expect(dels.map((d) => d.textContent)).toEqual(["sit", "the"]);
+    expect(container).toHaveTextContent(ORIGINAL);
+  });
+
+  it("keeps a removed word inside its issue's highlight", () => {
+    const { container, dels } = renderWithCorrection(CORRECTED);
+    const mark = container.querySelector("mark")!;
+    expect(mark).toHaveTextContent("cat sit");
+    expect(mark).toContainElement(dels[0]);
+  });
+
+  it("mutes a removal no issue flagged, but lets a highlight colour its own", () => {
+    const { dels } = renderWithCorrection(CORRECTED);
+    expect(dels[0]).toHaveClass("text-inherit");
+    expect(dels[1]).toHaveClass("text-muted-foreground");
+  });
+
+  it("strikes nothing without a corrected version", () => {
+    expect(renderWithCorrection().dels).toHaveLength(0);
+  });
+});
+
+it("accepts extra classes for the text", () => {
+  const { container } = render(
+    <HighlightedText
+      original={TEXT}
+      issues={[]}
+      activeIndex={null}
+      onActivate={vi.fn()}
+      className="text-base"
+    />,
+  );
+  const p = container.querySelector("p")!;
+  expect(p).toHaveClass("text-base");
+  expect(p).not.toHaveClass("text-lg");
+});

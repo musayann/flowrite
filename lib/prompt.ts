@@ -20,7 +20,7 @@ For the text the user provides, produce:
  - "category": one of: coherence, information-flow, structure, word-choice, connector, article, preposition, collocation, tense-aspect, punctuation, wordiness, clarity.
  - "explanation": what is wrong with THIS span specifically, in one or two sentences.
  - "rule": the REUSABLE rule or pattern behind the mistake — phrased so the learner can apply it to other sentences, not just this one. Avoid one-off notes.
-2. "correctedVersion": the text with minimal, targeted fixes applied — change only what is necessary to make it correct and coherent.
+2. "correctedVersion": the text with minimal, targeted fixes applied — change only what is necessary to make it correct and coherent. Fix every issue you listed, each at its excerpt, so the learner can see exactly what each change was.
 3. "naturalVersion": a more idiomatic, naturally-flowing rewrite that an expert writer might produce. It may restructure sentences for better information flow, but it must preserve the user’s intended meaning and voice.
 4. "naturalNote": one sentence explaining what the natural version changed and why.
 

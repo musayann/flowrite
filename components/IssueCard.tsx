@@ -1,17 +1,27 @@
 "use client";
 
 import type { Issue } from "@/lib/schema";
+import type { Fix } from "@/lib/fixes";
 import { CATEGORY_STYLES } from "@/lib/categories";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import FixDiff from "@/components/FixDiff";
 
 type Props = {
   issue: Issue;
   index: number;
   active: boolean;
   onActivate: (index: number | null) => void;
+  /** What the minimal correction changed for this issue, if anything. */
+  fix?: Fix | null;
 };
 
-export default function IssueCard({ issue, index, active, onActivate }: Props) {
+export default function IssueCard({
+  issue,
+  index,
+  active,
+  onActivate,
+  fix,
+}: Props) {
   const style = CATEGORY_STYLES[issue.category];
 
   return (
@@ -46,6 +56,11 @@ export default function IssueCard({ issue, index, active, onActivate }: Props) {
             {issue.rule}
           </p>
         </div>
+        {fix && (
+          <div className="mt-3 border-t pt-3">
+            <FixDiff fix={fix} category={issue.category} />
+          </div>
+        )}
       </CardContent>
     </Card>
   );
