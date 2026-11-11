@@ -1,6 +1,13 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import {
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { useSearchParams } from "next/navigation";
 import ComposeView from "@/components/ComposeView";
 import ReviewView from "@/components/ReviewView";
 import HistoryDrawer from "@/components/HistoryDrawer";
@@ -19,20 +26,39 @@ import {
   type HistoryEntry,
 } from "@/lib/history";
 
-/** The analysis on screen: the text it is for, and when it was made. */
-type Review = {
-  input: string;
-  result: AnalysisResult;
-  createdAt: number;
-  /** Its history entry, when it has one. */
-  id: string | null;
-};
+/**
+ * The review on screen is named in the URL by its history id (`/?text=<id>`),
+ * so a refresh, or Back and Forward, come back to the same text. The analysis
+ * itself is read from history, which lives in this browser only.
+ */
+const TEXT_PARAM = "text";
+
+/** Show the review of history entry `id`, or the form when `null`. */
+function go(id: string | null) {
+  const url = id ? `/?${TEXT_PARAM}=${encodeURIComponent(id)}` : "/";
+  window.history.pushState(null, "", url);
+}
 
 const toTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
-export default function Home() {
+const noSubscribe = () => () => {};
+
+/**
+ * Next requires a Suspense boundary above `useSearchParams` for when it tries
+ * to prerender the page at build time. The page is rendered per request (the
+ * header reads the session), so the URL is known on the server and the
+ * content still arrives server-rendered.
+ */
+export default function Page() {
+  return (
+    <Suspense>
+      <Home />
+    </Suspense>
+  );
+}
+
+function Home() {
   const [input, setInput] = useState("");
-  const [review, setReview] = useState<Review | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const history = useSyncExternalStore(
@@ -40,7 +66,26 @@ export default function Home() {
     getHistorySnapshot,
     getServerHistorySnapshot,
   );
+  // False on the server and while hydrating, when history still reads empty.
+  const hydrated = useSyncExternalStore(
+    noSubscribe,
+    () => true,
+    () => false,
+  );
   const drawer = useHistoryDrawer();
+
+  const openId = useSearchParams().get(TEXT_PARAM);
+  const review = useMemo(
+    () => (openId ? (history.find((e) => e.id === openId) ?? null) : null),
+    [history, openId],
+  );
+
+  // An id history doesn't have (removed, or from another browser): drop it,
+  // and show the form.
+  const missing = hydrated && openId !== null && review === null;
+  useEffect(() => {
+    if (missing) window.history.replaceState(null, "", "/");
+  }, [missing]);
 
   // Number issues in reading order, and work out what the correction changed
   // for each, in that same order.
@@ -73,13 +118,8 @@ export default function Home() {
         return;
       }
       const result = data.result as AnalysisResult;
-      const next = addHistory(text, result);
-      setReview({
-        input: text,
-        result,
-        createdAt: Date.now(),
-        id: next[0]?.input === text ? next[0].id : null,
-      });
+      const [saved] = addHistory(text, result);
+      go(saved.id);
       toTop();
     } catch {
       setError("Network error. Please try again.");
@@ -90,21 +130,16 @@ export default function Home() {
 
   function selectHistory(entry: HistoryEntry) {
     setInput(entry.input);
-    setReview({
-      input: entry.input,
-      result: entry.result,
-      createdAt: entry.createdAt,
-      id: entry.id,
-    });
     setError(null);
     drawer.setOpen(false);
+    if (entry.id !== openId) go(entry.id);
     toTop();
   }
 
   /** Back to the form, with `text` in it. */
   function compose(text: string) {
     setInput(text);
-    setReview(null);
+    go(null);
     toTop();
   }
 
@@ -116,7 +151,7 @@ export default function Home() {
     <main className="flex-1 bg-muted/40">
       {review ? (
         <ReviewView
-          key={`${review.createdAt}:${review.id}`}
+          key={review.id}
           original={review.input}
           result={review.result}
           issues={issues}
@@ -125,7 +160,7 @@ export default function Home() {
           onEdit={() => compose(review.input)}
           onNewText={() => compose("")}
         />
-      ) : (
+      ) : openId && !hydrated ? null /* Restoring a review: don't flash the form. */ : (
         <ComposeView
           input={input}
           onInputChange={setInput}
