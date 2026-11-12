@@ -1,0 +1,78 @@
+name: Bug report
+description: Report a bug or unexpected behaviour in Flowrite
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please make sure you **do not include any API keys, `AUTH_SECRET`, or private credentials** in your report.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of what went wrong.
+      placeholder: Describe the bug...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this behaviour?
+      placeholder: |
+        1. Paste text into the editor...
+        2. Select model '...'
+        3. Click 'Analyse'
+        4. See error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: Expected vs actual behaviour
+      description: What did you expect to happen, and what happened instead?
+      placeholder: |
+        **Expected:** ...
+        **Actual:** ...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: model
+    attributes:
+      label: Provider / Model used
+      description: Which AI provider and model were selected when the issue occurred?
+      options:
+        - OpenAI — GPT-4o (openai:gpt-4o)
+        - OpenAI — GPT-5 mini (openai:gpt-5-mini)
+        - Google — Gemini 3.8 Flash (google:gemini-3.8-flash)
+        - Google — Gemini 3.7 Flash (google:gemini-3.7-flash)
+        - Google — Gemini 3.5 Flash-Lite (google:gemini-3.5-flash-lite)
+        - Anthropic — Claude Sonnet 5 (anthropic:claude-sonnet-5)
+        - Anthropic — Claude Haiku 4.5 (anthropic:claude-haiku-4-5-20251001)
+        - Not applicable / UI only
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment / Browser
+      description: Browser, OS, and (if self-hosting) Node.js version.
+      placeholder: e.g. Chrome 135 on macOS 15, Node.js 22
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Paste any relevant browser console errors, server logs, or drag-and-drop screenshots here (redact any secrets).
+      render: text
+    validations:
+      required: false

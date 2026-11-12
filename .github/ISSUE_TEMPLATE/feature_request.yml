@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest a new feature, model, or improvement for Flowrite
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / Use case
+      description: What problem does this solve, or what workflow would it improve?
+      placeholder: I'm always frustrated when... / It would be helpful to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe how you envision this working in Flowrite.
+      placeholder: Describe the ideal behaviour, UI, or configuration...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Have you considered any alternative approaches or workarounds?
+      placeholder: Optional...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: willingness
+    attributes:
+      label: Willingness to submit a PR
+      description: Would you be interested in implementing this feature?
+      options:
+        - Yes, I'd like to open a PR for this
+        - Maybe, with some guidance
+        - No, just suggesting the idea
+    validations:
+      required: true

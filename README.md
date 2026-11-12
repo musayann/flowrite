@@ -1,35 +1,74 @@
+<div align="center">
+
+<img src="public/icon-192.png" alt="Flowrite logo" width="84" height="84" />
+
 # Flowrite
 
-An AI writing coach for British English (en-GB). Paste a sentence or short paragraph and Flowrite returns categorised, inline-highlighted feedback on your writing — plus two rewrites you can copy and learn from.
+**An AI writing coach for English.**  
+Paste a sentence or short paragraph and get categorised, inline-highlighted feedback, a word-level diff, and two rewrites you can learn from.
 
-## What it does
+[![CI](https://img.shields.io/github/actions/workflow/status/musayann/flowrite/ci.yml?branch=main&label=CI)](https://github.com/musayann/flowrite/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-- **Paste text** (up to 1500 characters) and analyse it with **Cmd/Ctrl+Enter**.
-- **British English throughout** — the interface, the explanations, and both rewrites use en-GB; US spellings in your text are flagged as word-choice issues.
-- **Inline highlights** — issues are marked directly in your text, colour-coded by category, with hover tooltips.
-- **8 issue categories** — coherence, information flow, structure, word choice, connector, article, preposition, and clarity.
-- **Actionable detail per issue** — the exact excerpt, an explanation of what's off, a reusable rule you can apply elsewhere, and a before/after of just the words its fix changes.
-- **Before and after** — the corrected version sits right under your text. Your text strikes through every word the correction removed and the corrected version highlights every word it added, both styled like the before/after in the issue cards; changes that fix an issue link back to its card.
-- **Two rewrites** — a *corrected* version (minimal, targeted fixes) and a *more natural* version (idiomatic rephrasing). Both are one click to copy.
-- **History sidebar** — your last ~20 analyses, stored locally in your browser.
-- **Light / dark mode.**
+[Why Flowrite?](#why-flowrite) · [Features](#features) · [Quick Start](#quick-start) · [Configuration](#configuration) · [How It Works](#how-it-works) · [Contributing](#contributing) · [License](#license)
 
-## Tech stack
+<br />
 
-- **Next.js 16** (App Router) with **React 19** and **TypeScript**
-- **Tailwind CSS v4** + **shadcn/ui** (Radix primitives)
-- **Auth.js v5** — single-user login (Credentials provider, JWT sessions)
-- **Multi-provider** — OpenAI, Google Gemini and Anthropic Claude, all via the OpenAI SDK against their OpenAI-compatible endpoints. Swappable per deploy or per request.
-- **Zod** — schemas shared between the client, the API, and the model
-- No database — analysis is stateless on the server, and history lives in the browser's `localStorage`.
+<img src="docs/review-screen.png" alt="Flowrite review screen in dark mode showing the Original tab with inline-highlighted issues and margin notes" width="900" />
 
-## Getting started
+*Dark mode — **Original** tab with inline highlights, category filter chips, and margin notes.*
+
+</div>
+
+---
+
+## Why Flowrite?
+
+Most grammar tools quietly rewrite your text without teaching you *why* something sounded awkward.
+
+**Flowrite** is built for people who want to write clearer, more natural **English**:
+
+- **Learn the rule, not just the fix** — every flagged issue includes an excerpt, a clear explanation, a reusable rule you can apply next time, and a focused before/after diff.
+- **Keep your keys & data under your control** — self-hosted with Auth.js v5 single-user login, server-side-only provider keys, no database, and browser-local history.
+- **Swap AI providers freely** — run OpenAI, Google Gemini, or Anthropic Claude through a single allowlisted interface without rebuilding.
+
+---
+
+## Features
+
+| Capability | What you get |
+| --- | --- |
+| **English Writing Coach** | Clear, consistent English across the interface, explanations, and both rewrites. |
+| **9 Issue Categories** | `coherence`, `information-flow`, `structure`, `word-choice`, `connector`, `article`, `preposition`, `punctuation`, and `clarity`. |
+| **Inline Highlights** | Colour-coded underlines and numbered markers directly in your text, paired with sticky margin notes on desktop, a bottom sheet on mobile, category filter chips, and prev/next stepping. |
+| **Word-Level Diff** | Toggle **Show changes** in the *Corrected* tab to see removed words struck through and added words highlighted, linked back to the corresponding issue. |
+| **Two Rewrites** | **Corrected** (minimal, targeted fixes) and **More natural** (idiomatic rephrasing with an editorial note), each with one-click copy. |
+| **Multi-Provider AI** | Supports OpenAI, Google Gemini, and Anthropic Claude—configurable per deployment via `MODEL` or per request against a strict server allowlist. |
+| **Local History** | Your last **20** analyses are saved locally in `localStorage` (`flowrite:history`) via the history drawer—no database required. |
+| **Dark / Light Mode & Shortcuts** | System-aware theme toggle, `Cmd/Ctrl + Enter` to analyse drafts (up to 1,500 characters), and `Escape` to close the mobile issue sheet. |
+
+<br />
+
+<div align="center">
+
+<img src="docs/review-screen-corrected.png" alt="Flowrite review screen in dark mode showing the Corrected tab with word-level inline diff enabled" width="900" />
+
+*Dark mode — **Corrected** tab with word-level inline diff (**Show changes**) enabled.*
+
+</div>
+
+---
+
+## Quick Start
 
 ### Prerequisites
 
-- Node.js 20+ and npm
-- An API key for at least one provider (OpenAI, Google Gemini, or Anthropic)
-- A Langfuse project and API keys (optional; the app still runs without tracing)
+- **Node.js 20+** (CI runs on Node 22) and **npm**
+- An API key for at least one provider (**OpenAI**, **Google Gemini**, or **Anthropic**)
+- *(Optional)* A [Langfuse](https://langfuse.com/) project and API keys for OpenTelemetry tracing
 
 ### Setup
 
@@ -37,10 +76,10 @@ An AI writing coach for British English (en-GB). Paste a sentence or short parag
 # 1. Install dependencies
 npm install
 
-# 2. Create your local env file
+# 2. Copy the environment template
 cp env.local.example .env.local
 
-# 3. Fill in .env.local (see below), then generate an auth secret:
+# 3. Generate an Auth.js secret and fill in .env.local (see Configuration below)
 npx auth secret
 ```
 
@@ -50,86 +89,138 @@ npx auth secret
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and log in with the credentials you set in `.env.local`.
+Open [http://localhost:3000](http://localhost:3000) and sign in with the `AUTH_USERNAME` and `AUTH_PASSWORD` you configured in `.env.local`.
 
-## Environment variables
+---
 
-Configure these in `.env.local` (see `env.local.example` for the template). Values shown there are placeholders — fill in your own.
+## Configuration
 
-| Variable           | Purpose                                                        |
-| ------------------ | -------------------------------------------------------------- |
-| `MODEL`            | Which model to use, as `provider:model` (see the list below). Defaults to `openai:gpt-4o`. |
-| `OPENAI_API_KEY`   | Your OpenAI API key. Used server-side only.                    |
-| `GEMINI_API_KEY`   | Your Google Gemini API key. Only needed for `google:` models.  |
-| `ANTHROPIC_API_KEY` | Your Anthropic API key. Only needed for `anthropic:` models.  |
-| `OPENAI_MODEL`     | Legacy. A bare model id, read as an OpenAI model when `MODEL` is unset. |
-| `LANGFUSE_PUBLIC_KEY` | Langfuse project public key. Tracing starts when both keys are set. |
-| `LANGFUSE_SECRET_KEY` | Langfuse project secret key. Server-side only. |
-| `LANGFUSE_BASE_URL` | Optional. Langfuse region or self-hosted URL. Defaults to the EU cloud. |
-| `LANGFUSE_TRACING_ENVIRONMENT` | Optional environment label, such as `development` or `production`. |
-| `LANGFUSE_RELEASE` | Optional application release/version attached to traces. |
-| `LANGFUSE_TRACING_ENABLED` | Optional kill switch. Set to `false` to disable exporting traces. |
-| `AUTH_SECRET`      | Signing key for sessions. Generate with `npx auth secret`.     |
-| `AUTH_USERNAME`    | The single login username.                                     |
-| `AUTH_PASSWORD`    | The single login password.                                     |
-| `AUTH_TRUST_HOST`  | Set for self-hosted / non-Vercel deployments.                  |
+### Environment variables
 
-## Choosing a model
+Configure these in `.env.local` (see [`env.local.example`](env.local.example) for the full template):
 
-Set `MODEL` to one of the allowlisted ids:
+| Variable | Purpose |
+| --- | --- |
+| `MODEL` | Active model as `provider:model`. Defaults to `openai:gpt-4o`. |
+| `OPENAI_API_KEY` | OpenAI API key (server-side only). |
+| `GEMINI_API_KEY` | Google Gemini API key. Required for `google:` models. |
+| `ANTHROPIC_API_KEY` | Anthropic API key. Required for `anthropic:` models. |
+| `OPENAI_MODEL` | Legacy bare OpenAI model ID used only when `MODEL` is unset. |
+| `AUTH_SECRET` | Session signing key. Generate with `npx auth secret`. |
+| `AUTH_USERNAME` | Single-user login username. |
+| `AUTH_PASSWORD` | Single-user login password. |
+| `AUTH_TRUST_HOST` | Set to `true` for self-hosted / non-Vercel deployments. |
+| `LANGFUSE_PUBLIC_KEY` | *(Optional)* Langfuse public key. Tracing starts when both keys are set. |
+| `LANGFUSE_SECRET_KEY` | *(Optional)* Langfuse secret key (server-side only). |
+| `LANGFUSE_BASE_URL` | *(Optional)* Langfuse host URL (defaults to `https://cloud.langfuse.com`). |
+| `LANGFUSE_TRACING_ENVIRONMENT` | *(Optional)* Environment label (e.g. `development`, `production`). |
+| `LANGFUSE_RELEASE` | *(Optional)* Release/version tag attached to traces. |
+| `LANGFUSE_TRACING_ENABLED` | *(Optional)* Set to `false` to disable exporting traces. |
 
-| `MODEL`                              | Provider  |
-| ------------------------------------ | --------- |
-| `openai:gpt-4o` *(default)*          | OpenAI    |
-| `openai:gpt-5-mini`                  | OpenAI    |
-| `google:gemini-3.7-flash`            | Google    |
-| `google:gemini-3.5-flash-lite`       | Google    |
-| `anthropic:claude-sonnet-5`          | Anthropic |
+### Model allowlist
+
+Set `MODEL` to any of the allowlisted IDs in [`lib/models.ts`](lib/models.ts):
+
+| `MODEL` | Provider |
+| --- | --- |
+| `openai:gpt-4o` *(default)* | OpenAI |
+| `openai:gpt-5-mini` | OpenAI |
+| `google:gemini-3.8-flash` | Google |
+| `google:gemini-3.7-flash` | Google |
+| `google:gemini-3.5-flash-lite` | Google |
+| `anthropic:claude-sonnet-5` | Anthropic |
 | `anthropic:claude-haiku-4-5-20251001` | Anthropic |
 
-The value is read fresh on every request, so a deployed server picks up a
-change without a rebuild. You can also override it for a single request by
-sending a `model` field alongside `text` in the POST body — it is validated
-against the same list, so no other model can be billed against your key.
+`MODEL` is read fresh on every request, so changing it does not require a rebuild. You can also pass a `model` field alongside `text` in `POST /api/analyze`; it is validated against the same `Map` allowlist so arbitrary models cannot be billed against your API keys.
 
-Adding a model is one line in `CATALOGUE` in `lib/models.ts`, provided its
-provider already exposes an OpenAI-compatible endpoint.
+Adding a new model from a supported provider is a single entry in `CATALOGUE` inside [`lib/models.ts`](lib/models.ts).
 
-## Scripts
+---
 
-| Command         | Description                       |
-| --------------- | --------------------------------- |
-| `npm run dev`   | Start the development server.     |
-| `npm run build` | Build for production.             |
-| `npm run start` | Run the production build.         |
-| `npm run lint`  | Lint with ESLint.                 |
+## How It Works
 
-## How it works
-
-When you submit text, the client calls `app/api/analyze/route.ts`. It resolves the model against the allowlist in `lib/models.ts`, then `lib/analysis.ts` sends the request using a JSON schema derived from `lib/schema.ts`. The response (issues + rewrites) is rendered as highlights and rewrite panels. Your API keys stay on the server and never reach the browser.
-
-Every supported provider speaks the OpenAI wire format, so one SDK client pointed at a different `baseURL` covers all three. What differs is how each is made to return valid JSON:
-
-- **OpenAI and Google** use Structured Outputs (`response_format: json_schema`). The decoder is constrained, so the response cannot violate the schema.
-- **Anthropic** uses a forced tool call carrying the same JSON Schema, because its OpenAI-compatibility layer documents `response_format` as ignored. The arguments are validated with Zod on the server instead — conformance is checked rather than guaranteed, and a response that fails validation is reported as an error rather than passed through.
-
-When Langfuse credentials are configured, each analysis creates a `writing-analysis` trace containing the authenticated user, input, structured output, provider and model, token usage, cost, latency, and provider errors. The input and generated output are therefore sent to your configured Langfuse project; set `LANGFUSE_TRACING_ENABLED=false` when that is not appropriate for an environment.
-
-## Project structure
-
+```text
+Client (Compose / Review UI)
+   │  POST /api/analyze  { text, model? }
+   ▼
+app/api/analyze/route.ts
+   ├─ Auth.js v5 session check + rate limiting + Zod input validation (≤ 1,500 chars)
+   ├─ Model resolution against allowlist (lib/models.ts)
+   ▼
+lib/analysis.ts
+   ├─ OpenAI & Google  ──▶ Structured Outputs (response_format: json_schema)
+   └─ Anthropic        ──▶ Forced tool_call + server-side Zod validation
+   ▼
+JSON Result (issues[] + corrected + natural + naturalNote)
+   └─ Optional Langfuse OpenTelemetry trace (writing-analysis)
 ```
+
+- **Unified SDK, strict schemas:** All three providers use the OpenAI SDK pointed at each provider's OpenAI-compatible `baseURL`, backed by shared Zod schemas in [`lib/schema.ts`](lib/schema.ts).
+- **Stateless & private:** API keys never leave the server, no user text is stored in a database, and review history stays in the browser's `localStorage`.
+
+### Tech stack
+
+- **Framework:** Next.js 16 (App Router) · React 19 · TypeScript 6
+- **Styling & UI:** Tailwind CSS v4 · shadcn/ui (Radix UI) · Lucide icons · `next-themes`
+- **Auth & AI:** Auth.js v5 (`next-auth`) · OpenAI SDK · Zod · Langfuse OpenTelemetry (optional)
+- **Testing:** Vitest · Testing Library · V8 coverage (75% thresholds)
+
+### Scripts
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the Next.js development server. |
+| `npm run build` | Build the application for production. |
+| `npm run start` | Start the production server. |
+| `npm run lint` | Run ESLint. |
+| `npm run typecheck` | Run TypeScript type checking (`tsc --noEmit`). |
+| `npm run test` | Run Vitest in watch mode. |
+| `npm run test:run` | Run the full test suite once. |
+| `npm run test:coverage` | Run tests with V8 coverage enforcement. |
+
+### Project structure
+
+```text
 app/
-  api/analyze/route.ts   # Analysis endpoint — auth, validation, tracing
-  login/                 # Login page
-  page.tsx               # Main UI
-components/               # AnalyzeForm, HighlightedText, IssueCard, VersionPanel, HistoryList, ...
+  api/analyze/route.ts   # Analysis endpoint (auth, rate limit, validation, tracing)
+  login/                 # Single-user login page
+  reviews/[id]/          # Dedicated review view
+  page.tsx               # Compose screen
+components/              # ComposeView, ReviewView, AnalyzeForm, HighlightedText, ChangesText, IssueMargin, IssueSheet, HistoryDrawer, ...
 lib/
-  schema.ts              # Zod schemas (issues, categories, result)
-  prompt.ts              # System prompt for the coach
-  models.ts              # Provider registry + model allowlist
-  analysis.ts            # The model call — Structured Outputs / forced tool call
+  schema.ts              # Zod schemas & 9 issue categories
+  prompt.ts              # System prompt for the English writing coach
+  models.ts              # Provider registry & model allowlist
+  analysis.ts            # Structured Outputs / forced tool-call execution
   openai.ts              # Per-provider clients wrapped with Langfuse tracing
-instrumentation.ts       # Next.js instrumentation entry point
-instrumentation.node.ts  # Langfuse OpenTelemetry exporter
-auth.ts                  # Auth.js configuration
+  diff.ts / highlight.ts # Word-level diffing & inline highlight mapping
+  history.ts             # Browser localStorage history (up to 20 entries)
+tests/                   # 35 Vitest unit & component test files
+auth.ts                  # Auth.js v5 configuration
+instrumentation.ts       # Next.js OpenTelemetry instrumentation entry
 ```
+
+---
+
+## Contributing
+
+Contributions of all sizes are warmly welcome! Here are a few great places to start:
+
+- **Add or update AI models** in [`lib/models.ts`](lib/models.ts) for supported OpenAI-compatible providers.
+- **Refine prompts & categories** in [`lib/prompt.ts`](lib/prompt.ts) and [`lib/categories.ts`](lib/categories.ts) to sharpen feedback.
+- **Polish UI/UX & accessibility** across the compose, margin-note, mobile sheet, and diff views.
+- **Expand tests** under `tests/` to keep coverage healthy across `node` and `dom` environments.
+- **Improve documentation** for self-hosting, configuration, and onboarding.
+
+Please read our community guides before getting started:
+
+- [**Contributing Guide**](CONTRIBUTING.md) — local setup, code quality, testing, and PR workflow
+- [**Code of Conduct**](CODE_OF_CONDUCT.md) — community standards we all uphold
+- [**Security Policy**](SECURITY.md) — how to report vulnerabilities privately
+- [**Open Issues**](https://github.com/musayann/flowrite/issues) · [**Pull Requests**](https://github.com/musayann/flowrite/pulls)
+
+---
+
+## License
+
+Flowrite is open-source software licensed under the [MIT License](LICENSE).

@@ -2,6 +2,29 @@
   "name": "flowrite",
   "version": "0.1.0",
   "private": true,
+  "description": "An AI writing coach for English with categorised inline feedback, word-level diffs, and idiomatic rewrites.",
+  "keywords": [
+    "nextjs",
+    "typescript",
+    "ai",
+    "writing-coach",
+    "english",
+    "openai",
+    "gemini",
+    "anthropic",
+    "tailwindcss",
+    "shadcn-ui",
+    "authjs"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/musayann/flowrite.git"
+  },
+  "bugs": {
+    "url": "https://github.com/musayann/flowrite/issues"
+  },
+  "homepage": "https://github.com/musayann/flowrite#readme",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
